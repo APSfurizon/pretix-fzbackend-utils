@@ -19,7 +19,7 @@ class FznackendutilsSettingsForm(SettingsForm):
                     "This page should call <code>/api/v1/orders-workflow/link-order</code> of the backend to link this order "
                     "to the logged in user."),
         required=False,
-        widget=forms.CharField,
+        widget=forms.TextInput,
         regex=re.compile(r'^(https://.*/.*|http://localhost[:/].*)*$')
     )
 
