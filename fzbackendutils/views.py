@@ -1,14 +1,10 @@
 import re
-
 from django import forms
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-
 from pretix.base.forms import SettingsForm
 from pretix.base.models import Event
-from pretix.control.views.event import (
-    EventSettingsFormView, EventSettingsViewMixin,
-)
+from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
 
 
 class FznackendutilsSettingsForm(SettingsForm):

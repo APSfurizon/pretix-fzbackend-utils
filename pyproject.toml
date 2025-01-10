@@ -1,5 +1,5 @@
 [project]
-name = "pretix-fzbackend-utils"
+name = "fzbackendutils"
 dynamic = ["version"]
 description = "Pretix utils plugin to work together with fz-backend"
 readme = "README.rst"

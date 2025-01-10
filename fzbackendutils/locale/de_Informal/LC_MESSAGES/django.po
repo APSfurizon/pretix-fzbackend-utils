@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-03-07 19:01+0100\n"
+"POT-Creation-Date: 2025-01-10 14:00+0100\n"
 "PO-Revision-Date: \n"
 "Last-Translator: APSfurizon\n"
 "Language-Team: \n"
@@ -10,3 +10,43 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#: fzbackendutils/apps.py:17
+msgid "Pretix fz-backend utils"
+msgstr ""
+
+#: fzbackendutils/apps.py:19
+msgid "Pretix utils plugin to work together with fz-backend"
+msgstr ""
+
+#: fzbackendutils/signals.py:59
+msgid "Fz-backend settings"
+msgstr ""
+
+#: fzbackendutils/templates/fzbackendutils/settings.html:5
+msgid "Fz-backend-utils settings"
+msgstr ""
+
+#: fzbackendutils/templates/fzbackendutils/settings.html:7
+msgid ""
+"Here you can change various pretix settings about the interaction with the "
+"fz-backend"
+msgstr ""
+
+#: fzbackendutils/templates/fzbackendutils/settings.html:19
+msgid "Save"
+msgstr ""
+
+#: fzbackendutils/views.py:16
+msgid "Order redirect url"
+msgstr ""
+
+#: fzbackendutils/views.py:17
+#, python-brace-format
+msgid ""
+"When an user has done, has modified or has paid an order, pretix will "
+"redirect him to this spacified url, with the order code and secret appended "
+"as query parameters (<code>?c={orderCode}&s={orderSecret}&m={statusMessages}"
+"</code>). This page should call <code>/api/v1/orders-workflow/link-order</"
+"code> of the backend to link this order to the logged in user."
+msgstr ""

@@ -1,26 +1,23 @@
 import logging
-
-from urllib.parse import urlencode
-
-from django.core.exceptions import PermissionDenied
 from django.contrib.messages import constants as messages, get_messages
+from django.core.exceptions import PermissionDenied
 from django.dispatch import receiver
 from django.urls import resolve, reverse
-
+from django.utils.translation import gettext_lazy as _
+from pretix.control.signals import nav_event_settings
 from pretix.helpers.http import redirect_to_url
 from pretix.presale.signals import process_request
-from pretix.control.signals import nav_event_settings
-
-from django.utils.translation import gettext_lazy as _
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
+
 
 @receiver(process_request, dispatch_uid="fzbackendutils_process_request")
 def returnurl_process_request(sender, request, **kwargs):
     try:
         r = resolve(request.path_info)
-    except:
-        logger.error("Error while resolving path info")
+    except Exception as e:
+        logger.error("Error while resolving path info:", e)
         return
 
     if r.url_name == "event.order":
@@ -28,8 +25,8 @@ def returnurl_process_request(sender, request, **kwargs):
 
         if not sender.settings.fzbackendutils_redirect_url:
             raise PermissionDenied('fz-backend-utils: no order redirect url set')
-        
-        # Fetch order status messages
+
+        #  Fetch order status messages
         query = []
         storage = get_messages(request)
         for message in storage:
@@ -47,7 +44,6 @@ def returnurl_process_request(sender, request, **kwargs):
         url = sender.settings.fzbackendutils_redirect_url + f"?c={order}&s={secret}&m={urlencode(query)}"
         logger.info(f"Redirecting to {url}")
         return redirect_to_url(url)
-
 
 
 @receiver(nav_event_settings, dispatch_uid='fzbackendutils_nav')
