@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-10 14:00+0100\n"
+"POT-Creation-Date: 2025-01-10 16:13+0100\n"
 "PO-Revision-Date: \n"
 "Last-Translator: APSfurizon\n"
 "Language-Team: \n"
@@ -19,7 +19,7 @@ msgstr ""
 msgid "Pretix utils plugin to work together with fz-backend"
 msgstr ""
 
-#: fzbackendutils/signals.py:59
+#: fzbackendutils/signals.py:55
 msgid "Fz-backend settings"
 msgstr ""
 
@@ -37,11 +37,11 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: fzbackendutils/views.py:16
+#: fzbackendutils/views.py:12
 msgid "Order redirect url"
 msgstr ""
 
-#: fzbackendutils/views.py:17
+#: fzbackendutils/views.py:13
 #, python-brace-format
 msgid ""
 "When an user has done, has modified or has paid an order, pretix will "
