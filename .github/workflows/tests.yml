@@ -4,11 +4,11 @@ on:
   push:
     branches: [ main, master ]
     paths-ignore:
-      - 'pretix_fzbackend_utils/locale/**'
+      - 'fzbackendutils/locale/**'
   pull_request:
     branches: [ main, master ]
     paths-ignore:
-      - 'pretix_fzbackend_utils/locale/**'
+      - 'fzbackendutils/locale/**'
 
 jobs:
   test:

@@ -1,6 +1,6 @@
 #!/bin/sh
 COMPONENTS=pretix/pretix-plugin-pretix-fzbackend-utils
-DIR=pretix_fzbackend_utils/locale
+DIR=fzbackendutils/locale
 # Renerates .po files used for translating the plugin
 set -e
 set -x
