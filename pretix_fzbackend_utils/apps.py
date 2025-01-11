@@ -10,7 +10,7 @@ except ImportError:
 
 class PluginApp(PluginConfig):
     default = True
-    name = "fzbackendutils"
+    name = "pretix_fzbackend_utils"
     verbose_name = "Pretix fz-backend utils"
 
     class PretixPluginMeta:

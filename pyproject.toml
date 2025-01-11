@@ -1,5 +1,5 @@
 [project]
-name = "fzbackendutils"
+name = "pretix-fzbackend-utils"
 dynamic = ["version"]
 description = "Pretix utils plugin to work together with fz-backend"
 readme = "README.rst"
@@ -7,19 +7,16 @@ license = {text = "Apache"}
 keywords = ["pretix"]
 authors = [
     {name = "Furizon Team", email = "webservice@furizon.net"},
-    {name = "Luca Sorace", email = "public.stranck@gmail.com"},
 ]
 maintainers = [
     {name = "Furizon Team", email = "webservice@furizon.net"},
-    {name = "Luca Sorace", email = "public.stranck@gmail.com"},
 ]
-
 
 dependencies = [
 ]
 
 [project.entry-points."pretix.plugin"]
-fzbackendutils = "fzbackendutils:PretixPluginMeta"
+pretix_fzbackend_utils = "pretix_fzbackend_utils:PretixPluginMeta"
 
 [project.entry-points."distutils.commands"]
 build = "pretix_plugin_build.build:CustomBuild"
@@ -38,7 +35,7 @@ repository = "https://github.com/APSfurizon/pretix-fzbackend-utils"
 include-package-data = true
 
 [tool.setuptools.dynamic]
-version = {attr = "fzbackendutils.__version__"}
+version = {attr = "pretix_fzbackend_utils.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["pretix*"]

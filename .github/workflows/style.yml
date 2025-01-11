@@ -4,13 +4,13 @@ on:
   push:
     branches: [ main, master ]
     paths-ignore:
-      - 'fzbackendutils/locale/**'
-      - 'fzbackendutils/static/**'
+      - 'pretix_fzbackend_utils/locale/**'
+      - 'pretix_fzbackend_utils/static/**'
   pull_request:
     branches: [ main, master ]
     paths-ignore:
-      - 'fzbackendutils/locale/**'
-      - 'fzbackendutils/static/**'
+      - 'pretix_fzbackend_utils/locale/**'
+      - 'pretix_fzbackend_utils/static/**'
 
 jobs:
   isort:

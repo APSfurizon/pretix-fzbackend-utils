@@ -1,5 +1,5 @@
 [plugin]
 package = "pretix-fzbackend-utils"
-modules = [ "fzbackendutils" ]
+modules = [ "pretix_fzbackend_utils" ]
 marketplace_name = "fzbackend-utils"
 

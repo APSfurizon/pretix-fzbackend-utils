@@ -11,37 +11,37 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: fzbackendutils/apps.py:17
+#: pretix_fzbackend_utils/apps.py:17
 msgid "Pretix fz-backend utils"
 msgstr ""
 
-#: fzbackendutils/apps.py:19
+#: pretix_fzbackend_utils/apps.py:19
 msgid "Pretix utils plugin to work together with fz-backend"
 msgstr ""
 
-#: fzbackendutils/signals.py:55
+#: pretix_fzbackend_utils/signals.py:55
 msgid "Fz-backend settings"
 msgstr ""
 
-#: fzbackendutils/templates/fzbackendutils/settings.html:5
+#: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:5
 msgid "Fz-backend-utils settings"
 msgstr ""
 
-#: fzbackendutils/templates/fzbackendutils/settings.html:7
+#: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:7
 msgid ""
 "Here you can change various pretix settings about the interaction with the "
 "fz-backend"
 msgstr ""
 
-#: fzbackendutils/templates/fzbackendutils/settings.html:19
+#: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:19
 msgid "Save"
 msgstr ""
 
-#: fzbackendutils/views.py:12
+#: pretix_fzbackend_utils/views.py:12
 msgid "Order redirect url"
 msgstr ""
 
-#: fzbackendutils/views.py:13
+#: pretix_fzbackend_utils/views.py:13
 #, python-brace-format
 msgid ""
 "When an user has done, has modified or has paid an order, pretix will "

@@ -43,7 +43,7 @@ License
 -------
 
 
-Copyright 2024 APSfurizon
+Copyright 2025 Furizon Team
 
 Released under the terms of the Apache License 2.0
 

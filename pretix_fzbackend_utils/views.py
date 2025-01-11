@@ -23,11 +23,11 @@ class FznackendutilsSettingsForm(SettingsForm):
 class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
     model = Event
     form_class = FznackendutilsSettingsForm
-    template_name = 'fzbackendutils/settings.html'
+    template_name = 'pretix_fzbackend_utils/settings.html'
     permission = 'can_change_settings'
 
     def get_success_url(self) -> str:
-        return reverse('plugins:fzbackendutils:settings', kwargs={
+        return reverse('plugins:pretix_fzbackend_utils:settings', kwargs={
             'organizer': self.request.event.organizer.slug,
             'event': self.request.event.slug
         })

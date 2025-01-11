@@ -53,9 +53,9 @@ def navbar_info(sender, request, **kwargs):
         return []
     return [{
         'label': _('Fz-backend settings'),
-        'url': reverse('plugins:fzbackendutils:settings', kwargs={
+        'url': reverse('plugins:pretix_fzbackend_utils:settings', kwargs={
             'event': request.event.slug,
             'organizer': request.organizer.slug,
         }),
-        'active': url.namespace == 'plugins:fzbackendutils',
+        'active': url.namespace == 'plugins:pretix_fzbackend_utils',
     }]
