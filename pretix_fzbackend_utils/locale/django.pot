@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-11 11:24+0100\n"
+"POT-Creation-Date: 2025-01-14 13:41+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -25,8 +25,19 @@ msgstr ""
 msgid "Pretix utils plugin to work together with fz-backend"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:55
+#: pretix_fzbackend_utils/signals.py:58
 msgid "Fz-backend settings"
+msgstr ""
+
+#: pretix_fzbackend_utils/signals.py:71
+msgid "[FZBACKEND] Internal endpoint token"
+msgstr ""
+
+#: pretix_fzbackend_utils/signals.py:72
+msgid ""
+"This plugin exposes some api for extra access to the fz-backend. This token "
+"needs to be specified in the <code>fz-backend-api</code> header to access "
+"these endpoints."
 msgstr ""
 
 #: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:5
@@ -43,11 +54,11 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: pretix_fzbackend_utils/views.py:12
+#: pretix_fzbackend_utils/views.py:24
 msgid "Order redirect url"
 msgstr ""
 
-#: pretix_fzbackend_utils/views.py:13
+#: pretix_fzbackend_utils/views.py:25
 #, python-brace-format
 msgid ""
 "When an user has done, has modified or has paid an order, pretix will "
