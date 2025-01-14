@@ -1,9 +1,12 @@
 import logging
+from collections import OrderedDict
+from django import forms
 from django.contrib.messages import constants as messages, get_messages
 from django.core.exceptions import PermissionDenied
 from django.dispatch import receiver
 from django.urls import resolve, reverse
 from django.utils.translation import gettext_lazy as _
+from pretix.base.signals import register_global_settings
 from pretix.control.signals import nav_event_settings
 from pretix.helpers.http import redirect_to_url
 from pretix.presale.signals import process_request
@@ -59,3 +62,15 @@ def navbar_info(sender, request, **kwargs):
         }),
         'active': url.namespace == 'plugins:pretix_fzbackend_utils',
     }]
+
+
+@receiver(register_global_settings, dispatch_uid="autocart_global_setting")
+def globalSettings(**kwargs):
+    return OrderedDict([
+        ('fzbackendutils_internal_endpoint_token', forms.CharField(
+            label=_("[FZBACKEND] Internal endpoint token"),
+            help_text=_("This plugin exposes some api for extra access to the fz-backend. This token needs to be specified in the "
+                        "<code>fz-backend-api</code> header to access these endpoints."),
+            required=False,
+        ))
+    ])
