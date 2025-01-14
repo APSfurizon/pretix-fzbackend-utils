@@ -11,6 +11,9 @@ from django.views import View
 from django.http import HttpResponse, JsonResponse
 from pretix.base.models import Event, OrderPosition
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from django.shortcuts import get_object_or_404
+from rest_framework import viewsets
+from rest_framework.response import Response
 import json
 
 logger = logging.getLogger(__name__)
@@ -26,12 +29,6 @@ class FznackendutilsSettingsForm(SettingsForm):
         required=False,
         widget=forms.TextInput,
         regex=re.compile(r'^(https://.*/.*|http://localhost[:/].*)*$')
-    )
-    fzbackendutils_internal_endpoint_token = forms.CharField(
-        label=_("Internal endpoint token"),
-        help_text=_("This plugin exposes some api for extra access to the fz-backend. This token needs to be specified in the "
-                    "<code>fz-backend-api</code> header to access these endpoints."),
-        required=False,
     )
 
 
@@ -49,11 +46,11 @@ class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
-class ApiSetItemBundle(View):
-    def post(self, request, *args, **kwargs):
-        token = request.headers.get('fz-backend-api')
-        if request.event.settings.fzbackendutils_internal_endpoint_token and (not token or token != request.event.settings.fzbackendutils_internal_endpoint_token):
-            return JsonResponse({'error': 'Invalid token'}, status=403)
+class ApiViewSet(viewsets.ViewSet):
+    permission = 'can_view_orders'
+    write_permission = 'can_change_orders'
+
+    def set_is_bundle(self, request):
         data = json.loads(request.body)
         logger.info(f"Backend is trying to set is_bundle for position {data['position']} to {data['bundle']}")
 
@@ -62,10 +59,7 @@ class ApiSetItemBundle(View):
         if data['bundle'] is not True and data['bundle'] is not False and not isinstance(data['bundle'], bool):
             return JsonResponse({'error': 'Invalid bundle value'}, status=400)
 
-        positionQuery = OrderPosition.objects.filter(id=data['position'])
-        if not positionQuery:
-            return JsonResponse({'error': 'Position not found'}, status=404)
-        position: OrderPosition = positionQuery.first()
+        position = get_object_or_404(OrderPosition.objects.filter(id=data['position']))
 
         position.is_bundled = data['bundle']
         position.save(update_fields=['is_bundled'])

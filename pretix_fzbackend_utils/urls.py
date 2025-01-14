@@ -2,7 +2,7 @@ from django.urls import re_path
 
 from .views import FznackendutilsSettings
 
-from pretix.multidomain import event_url
+from pretix.api.urls import event_router
 
 urlpatterns = [
     re_path(r'^control/event/(?P<organizer>[^/]+)/(?P<event>[^/]+)/fzbackendutils/settings$',
