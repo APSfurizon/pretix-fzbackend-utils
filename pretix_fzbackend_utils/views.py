@@ -22,27 +22,32 @@ logger = logging.getLogger(__name__)
 class FznackendutilsSettingsForm(SettingsForm):
     fzbackendutils_redirect_url = forms.RegexField(
         label=_("Order redirect url"),
-        help_text=_("When an user has done, has modified or has paid an order, pretix will redirect him to this spacified url, "
-                    "with the order code and secret appended as query parameters (<code>?c={orderCode}&s={orderSecret}&m={statusMessages}</code>). "
-                    "This page should call <code>/api/v1/orders-workflow/link-order</code> of the backend to link this order "
-                    "to the logged in user."),
+        help_text=_(
+            "When an user has done, has modified or has paid an order, pretix will redirect him to this spacified url, "
+            "with the order code and secret appended as query parameters (<code>?c={orderCode}&s={orderSecret}&m={statusMessages}</code>). "
+            "This page should call <code>/api/v1/orders-workflow/link-order</code> of the backend to link this order "
+            "to the logged in user."
+        ),
         required=False,
         widget=forms.TextInput,
-        regex=re.compile(r'^(https://.*/.*|http://localhost[:/].*)*$')
+        regex=re.compile(r"^(https://.*/.*|http://localhost[:/].*)*$"),
     )
 
 
 class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
     model = Event
     form_class = FznackendutilsSettingsForm
-    template_name = 'pretix_fzbackend_utils/settings.html'
-    permission = 'can_change_settings'
+    template_name = "pretix_fzbackend_utils/settings.html"
+    permission = "can_change_settings"
 
     def get_success_url(self) -> str:
-        return reverse('plugins:pretix_fzbackend_utils:settings', kwargs={
-            'organizer': self.request.event.organizer.slug,
-            'event': self.request.event.slug
-        })
+        return reverse(
+            "plugins:pretix_fzbackend_utils:settings",
+            kwargs={
+                "organizer": self.request.event.organizer.slug,
+                "event": self.request.event.slug,
+            },
+        )
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
@@ -50,22 +55,34 @@ class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
 class ApiSetItemBundle(UpdateView, View):
     def post(request, *args, **kwargs):
         request = request.request
-        token = request.headers.get('fz-backend-api')
+        token = request.headers.get("fz-backend-api")
         settings = GlobalSettingsObject().settings
-        if settings.fzbackendutils_internal_endpoint_token and (not token or token != settings.fzbackendutils_internal_endpoint_token):
-            return JsonResponse({'error': 'Invalid token'}, status=403)
+        if settings.fzbackendutils_internal_endpoint_token and (
+            not token or token != settings.fzbackendutils_internal_endpoint_token
+        ):
+            return JsonResponse({"error": "Invalid token"}, status=403)
 
         data = json.loads(request.body)
-        if 'position' not in data or not isinstance(data['position'], int):
-            return JsonResponse({'error': 'Missing or invalid parameter "position"'}, status=400)
-        if 'is_bundle' not in data or not isinstance(data['is_bundle'], bool):
-            return JsonResponse({'error': 'Missing or invalid parameter "is_bundle"'}, status=400)
-        logger.info(f"Backend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}")
+        if "position" not in data or not isinstance(data["position"], int):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "position"'}, status=400
+            )
+        if "is_bundle" not in data or not isinstance(data["is_bundle"], bool):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "is_bundle"'}, status=400
+            )
+        logger.info(
+            f"Backend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
+        )
 
-        position: OrderPosition = get_object_or_404(OrderPosition.objects.filter(id=data['position']))
+        position: OrderPosition = get_object_or_404(
+            OrderPosition.objects.filter(id=data["position"])
+        )
 
-        position.is_bundled = data['is_bundle']
-        position.save(update_fields=['is_bundled'])
-        logger.info(f"Backend successfully set is_bundle for position {data['position']} to {data['is_bundle']}")
+        position.is_bundled = data["is_bundle"]
+        position.save(update_fields=["is_bundled"])
+        logger.info(
+            f"Backend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
+        )
 
-        return HttpResponse('')
+        return HttpResponse("")

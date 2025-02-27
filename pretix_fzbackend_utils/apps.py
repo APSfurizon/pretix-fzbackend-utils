@@ -16,7 +16,9 @@ class PluginApp(PluginConfig):
     class PretixPluginMeta:
         name = gettext_lazy("Pretix fz-backend utils")
         author = "APSfurizon"
-        description = gettext_lazy("Pretix utils plugin to work together with fz-backend")
+        description = gettext_lazy(
+            "Pretix utils plugin to work together with fz-backend"
+        )
         visible = True
         version = __version__
         category = "API"

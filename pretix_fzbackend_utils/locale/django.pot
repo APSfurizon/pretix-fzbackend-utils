@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-14 13:41+0100\n"
+"POT-Creation-Date: 2025-02-27 13:15+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -25,19 +25,31 @@ msgstr ""
 msgid "Pretix utils plugin to work together with fz-backend"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:58
+#: pretix_fzbackend_utils/payment.py:20
+msgid "FzBackendUtils Manual payment"
+msgstr ""
+
+#: pretix_fzbackend_utils/payment.py:21
+msgid "FzBackendUtils - Manual payment"
+msgstr ""
+
+#: pretix_fzbackend_utils/signals.py:60
 msgid "Fz-backend settings"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:71
+#: pretix_fzbackend_utils/signals.py:73
 msgid "[FZBACKEND] Internal endpoint token"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:72
+#: pretix_fzbackend_utils/signals.py:74
 msgid ""
 "This plugin exposes some api for extra access to the fz-backend. This token "
 "needs to be specified in the <code>fz-backend-api</code> header to access "
 "these endpoints."
+msgstr ""
+
+#: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/control.html:5
+msgid "FzBackend comment:"
 msgstr ""
 
 #: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:5

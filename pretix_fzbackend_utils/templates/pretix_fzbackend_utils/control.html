@@ -1,0 +1,8 @@
+{% load i18n %}
+
+{% if comment %}
+    <dl class="dl-horizontal">
+        <dt>{% trans "FzBackend comment:" %}</dt>
+        <dd>{{ comment }}</dd>
+    </dl>
+{% endif %}
