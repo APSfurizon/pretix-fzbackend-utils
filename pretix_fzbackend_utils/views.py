@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from rest_framework.views import APIView
 from django import forms
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -11,10 +12,14 @@ from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from pretix.base.forms import SettingsForm
-from pretix.base.models import Event, OrderPosition
 from pretix.base.settings import GlobalSettingsObject
-from pretix.control.views import UpdateView
+from pretix.base.models import (
+    Item, ItemVariation, Event, Order,
+    OrderPosition
+)
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from pretix.base.services.orders import OrderChangeManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +57,9 @@ class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
 
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
-class ApiSetItemBundle(UpdateView, View):
-    def post(request, *args, **kwargs):
-        request = request.request
+class ApiSetItemBundle(APIView, View):
+    permission = "can_change_orders"
+    def post(self, request, organizer, event, *args, **kwargs):
         token = request.headers.get("fz-backend-api")
         settings = GlobalSettingsObject().settings
         if settings.fzbackendutils_internal_endpoint_token and (
@@ -62,7 +67,7 @@ class ApiSetItemBundle(UpdateView, View):
         ):
             return JsonResponse({"error": "Invalid token"}, status=403)
 
-        data = json.loads(request.body)
+        data = request.data
         if "position" not in data or not isinstance(data["position"], int):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "position"'}, status=400
