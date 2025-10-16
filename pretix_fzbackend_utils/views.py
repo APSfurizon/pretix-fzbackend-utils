@@ -1,9 +1,10 @@
 import json
 import logging
 import re
-from fzutils.FzOrderChangeManager import FzOrderChangeManager
+from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
 from rest_framework.views import APIView
 from django import forms
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -12,6 +13,8 @@ from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
+from pretix.api.serializers.orderchange import OrderPositionInfoPatchSerializer
+from pretix.helpers import OF_SELF
 from pretix.base.forms import SettingsForm
 from pretix.base.settings import GlobalSettingsObject
 from pretix.base.models import (
@@ -19,7 +22,10 @@ from pretix.base.models import (
     OrderPosition
 )
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
-from pretix.base.services.orders import OrderChangeManager
+from pretix.base.services import tickets
+from pretix.base.signals import (
+    order_modified, order_paid,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +84,7 @@ class ApiSetItemBundle(APIView, View):
                 {"error": 'Missing or invalid parameter "is_bundle"'}, status=400
             )
         logger.info(
-            f"Backend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
+            f"FzBackend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
         )
 
         position: OrderPosition = get_object_or_404(
@@ -88,84 +94,148 @@ class ApiSetItemBundle(APIView, View):
         position.is_bundled = data["is_bundle"]
         position.save(update_fields=["is_bundled"])
         logger.info(
-            f"Backend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
+            f"FzBackend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
         )
 
         return HttpResponse("")
 
-
+# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/convert-ticket-only-order/ -H "Authorization: Token TOKEN" -H "Content-Type: application/json" -X Post --data '{"orderCode": "J0SN9", "rootPositionId": 99, "newRootItemId": 17}'
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiConvertTicketOnlyOrder(APIView, View):
     permission = "can_change_orders"
     def post(self, request, organizer, event, *args, **kwargs):
-        #TODO header check
+        #TODO header check        
+        #907E7
+        
         data = request.data
-        #TODO input validation
-        #logger.info(
-        #    f"Backend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
-        #)
-        orderCode = "907E7"
-        itemId = 1
-        itemVariationId = None
-
-        order: Order = get_object_or_404(
-            Order.objects.filter(event=request.event, code=orderCode, event__organizer=request.organizer)
-        )
-        item: Item = get_object_or_404(
-            Item.objects.filter(pk=itemId)
-        )
-        itemVariation: ItemVariation = get_object_or_404(
-            ItemVariation.objects.filter(pk=itemVariationId)
-        ) if itemVariationId is not None else None
-    
-
-        ocm = FzOrderChangeManager(
-            order=order,
-            user=None,
-            auth=request.auth,
-            notify=False,
-            reissue_invoice=False,
-        )
+        if "orderCode" not in data or not isinstance(data["orderCode"], str):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "orderCode"'}, status=400
+            )
+        if "rootPositionId" not in data or not isinstance(data["rootPositionId"], int):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "rootPositionId"'}, status=400
+            )
+        if "newRootItemId" not in data or not isinstance(data["newRootItemId"], int):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "newRootItemId"'}, status=400
+            )
+        if "newRootItemVariationId" in data and not isinstance(data["newRootItemVariationId"], int):
+            return JsonResponse(
+                {"error": 'Invalid parameter "newRootItemVariationId"'}, status=400
+            )
         
-        ocm.add_position_no_addon_validation(
-            item=item,
-            variation=itemVariation,
-            price=None,
-            addon_to=validated_data.get('addon_to'),
-            subevent=validated_data.get('subevent'),
-            seat=validated_data.get('seat'),
-            valid_from=validated_data.get('valid_from'),
-            valid_until=validated_data.get('valid_until'),
-        )
+        orderCode = data["orderCode"]
+        currentRootPositionId = data["rootPositionId"]
+        newRootItemId = data["newRootItemId"]
+        newRootItemVariationId = data.get("newRootItemVariationId", None)
         
-        nextposid = order.all_positions.aggregate(m=Max('positionid'))['m'] + 1
-        pos = OrderPosition.objects.create(
-            item=op.item, variation=op.variation, addon_to=op.addon_to,
-            price=op.price.gross, order=self.order, tax_rate=op.price.rate, tax_code=op.price.code,
-            tax_value=op.price.tax, tax_rule=op.item.tax_rule,
-            positionid=nextposid, subevent=op.subevent, seat=op.seat,
-            used_membership=op.membership, valid_from=op.valid_from, valid_until=op.valid_until,
-            is_bundled=op.is_bundled,
+        logger.info(
+            f"ApiConvertTicketOnlyOrder [{orderCode}]: Got from req rootPosId={currentRootPositionId} newRootItemId={newRootItemId} newRootItemVariationId={newRootItemVariationId}"
         )
-        nextposid += 1
-        self.order.log_action('pretix.event.order.changed.add', user=self.user, auth=self.auth, data={
-            'position': pos.pk,
-            'item': op.item.pk,
-            'variation': op.variation.pk if op.variation else None,
-            'addon_to': op.addon_to.pk if op.addon_to else None,
-            'price': op.price.gross,
-            'positionid': pos.positionid,
-            'membership': pos.used_membership_id,
-            'subevent': op.subevent.pk if op.subevent else None,
-            'seat': op.seat.pk if op.seat else None,
-            'valid_from': op.valid_from.isoformat() if op.valid_from else None,
-            'valid_until': op.valid_until.isoformat() if op.valid_until else None,
-        })
 
-        #logger.info(
-        #    f"Backend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
-        #)
-        print(order)
+        CONTEXT = {"event": request.event, "pdf_data": False, "check_quotas": False}
+        try:
+            with transaction.atomic():
+                # OBTAINS OBJECTS FROM DB
+                # Original Order
+                order: Order = get_object_or_404(
+                    Order.objects.select_for_update(of=OF_SELF).filter(event=request.event, code=orderCode, event__organizer=request.organizer)
+                )
+                # root position, item and variation
+                rootPosition: OrderPosition = get_object_or_404(
+                    OrderPosition.objects.select_for_update(of=OF_SELF).filter(pk=currentRootPositionId, order__pk=order.pk)
+                )
+                rootItem: Item = rootPosition.item
+                rootItemVariation: ItemVariation = rootPosition.variation
+                logger.debug(
+                    f"ApiConvertTicketOnlyOrder [{orderCode}]: Fetched current rootItem={rootItem.pk} rootItemVariation={rootItemVariation.pk if rootItemVariation else None}"
+                )
+                # new item and variation
+                newRootItem: Item = get_object_or_404(
+                    Item.objects.select_for_update(of=OF_SELF).filter(pk=newRootItemId, event__pk=request.event.pk)
+                )
+                newRootItemVariation: ItemVariation = get_object_or_404(
+                    ItemVariation.objects.select_for_update(of=OF_SELF).filter(pk=newRootItemVariationId, item__pk=newRootItemId)
+                ) if newRootItemVariationId is not None else None
+
+                # POSITION SWAP + CREATION
+                ocm = FzOrderChangeManager(
+                    order=order,
+                    user=self.request.user if self.request.user.is_authenticated else None,
+                    auth=request.auth,
+                    notify=False,
+                    reissue_invoice=False,
+                )
+                ocm.add_position_no_addon_validation(
+                    item=rootItem,
+                    variation=rootItemVariation,
+                    price=rootPosition.price,
+                    addon_to=rootPosition,
+                    subevent=rootPosition.subevent,
+                    seat=rootPosition.seat,
+                    #membership=rootPosition.membership,
+                    valid_from=rootPosition.valid_from,
+                    valid_until=rootPosition.valid_until,
+                    is_bundled=True # IMPORTANT!
+                )
+                ocm.change_item(
+                    position=rootPosition,
+                    item=newRootItem,
+                    variation=newRootItemVariation
+                )
+                ocm.change_price(
+                    position=rootPosition,
+                    price=0 #newRootItem.default_price if newRootItemVariation is None else newRootItemVariation.default_price
+                )
+                ocm.commit(check_quotas=False)
+                
+                # Possible race condition, however Pretix does this inside their code as well
+                # https://github.com/pretix/pretix/issues/5548
+                newPosition: OrderPosition = order.positions.order_by('-positionid').first()
+                logger.debug(
+                    f"ApiConvertTicketOnlyOrder [{orderCode}]: Newly added position {newPosition.pk}"
+                )
+                
+                # We update with the extra data the newly created position
+                rootPositionSerializer = OrderPositionInfoPatchSerializer(instance=rootPosition, context=CONTEXT, partial=True)
+                tempSerializer = OrderPositionInfoPatchSerializer(context=CONTEXT, data=rootPositionSerializer.data, partial=True) 
+                tempSerializer.is_valid(raise_exception=False)
+                finalData = {k: v for k, v in rootPositionSerializer.data.items() if k not in tempSerializer.errors}
+                newPositionSerializer = OrderPositionInfoPatchSerializer(instance=newPosition, context=CONTEXT, data=finalData, partial=True)
+                newPositionSerializer.is_valid(raise_exception=True)
+                newPositionSerializer.save()
+                rootPositionSerializer = OrderPositionInfoPatchSerializer(instance=rootPosition, context=CONTEXT, data={"answers": []}, partial=True)
+                rootPositionSerializer.is_valid(raise_exception=True)
+                rootPositionSerializer.save()
+                # We log the extra data changes. The position operations are logged inside OCM already 
+                if 'answers' in finalData:
+                    for a in finalData['answers']:
+                        finalData[f'question_{a["question"]}'] = a["answer"]
+                    finalData.pop('answers', None)
+                order.log_action(
+                    'pretix.event.order.modified',
+                    user=self.request.user,
+                    auth=self.request.auth,
+                    data={
+                        'data': [
+                            dict(
+                                position=newPosition.pk,
+                                **finalData
+                            )
+                        ]
+                    }
+                )
+                
+                tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
+                order_modified.send(sender=request.event, order=order) # Sadly signal has to be sent twice: One after changing the extra info, and one inside ocm
+        except Exception as e:
+            logger.error(str(e))
+
+
+        logger.info(
+            f"ApiConvertTicketOnlyOrder [{orderCode}]: Success"
+        )
 
         return HttpResponse("")
