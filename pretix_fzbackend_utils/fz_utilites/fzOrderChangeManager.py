@@ -18,7 +18,7 @@ class FzOrderChangeManager(OrderChangeManager):
     
     fz_enable_locking = True
     
-    # If fz_enable_locking is set to False, the caller takes responsability for calling `lock_objects([self.event])` once per transaction
+    # If fz_enable_locking is set to False, the caller takes responsability for calling `lock_objects([event])` once per transaction
     def _create_locks(self):
         if self.fz_enable_locking:
             super()._create_locks()
