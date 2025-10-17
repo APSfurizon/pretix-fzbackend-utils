@@ -37,120 +37,7 @@ from pretix.base.signals import (
 
 logger = logging.getLogger(__name__)
 
-@method_decorator(xframe_options_exempt, "dispatch")
-@method_decorator(csrf_exempt, "dispatch")
-class ApiExchangeRooms(APIView, View):
-    permission = "can_change_orders"
-    def post(self, request, organizer, event, *args, **kwargs):
-        data = request.data
-        
-        # Source info
-        if "sourceOrderCode" not in data or not isinstance(data["sourceOrderCode"], str):
-            return JsonResponse(
-                {"error": 'Missing or invalid parameter "sourceOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "sourceRoomPositionId" not in data or not isinstance(data["sourceRoomPositionId"], int):
-            return JsonResponse(
-                {"error": 'Missing or invalid parameter "sourceRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "sourceEarlyPositionId" in data and not isinstance(data["sourceEarlyPositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "sourceEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "sourceLatePositionId" in data and not isinstance(data["sourceLatePositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "sourceLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        # Dest info
-        if "destOrderCode" not in data or not isinstance(data["destOrderCode"], str):
-            return JsonResponse(
-                {"error": 'Missing or invalid parameter "destOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "destRoomPositionId" not in data or not isinstance(data["destRoomPositionId"], int):
-            return JsonResponse(
-                {"error": 'Missing or invalid parameter "destRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "destEarlyPositionId" in data and not isinstance(data["destEarlyPositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "destEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "destLatePositionId" in data and not isinstance(data["destLatePositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "destLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        # Extra
-        if "manualPaymentComment" in data and not isinstance(data["manualPaymentComment"], str):
-            return JsonResponse(
-                {"error": 'Invalid parameter "manualPaymentComment"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "manualRefundComment" in data and not isinstance(data["manualRefundComment"], str):
-            return JsonResponse(
-                {"error": 'Invalid parameter "manualRefundComment"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        src = self.SideData(data, "source")
-        dst = self.SideData(data, "dest")
-        paymentComment = data.get("manualPaymentComment", None)
-        refundComment = data.get("manualRefundComment", None)
-        
-        logger.info(
-            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Got from req  src=[{src}]  dst=[{dst}]"
-        )
-        
-        # Create an order over the orders to acquire the locks. In this way we prevent deadlocks
-        # Ugly ass btw
-        srcBigger = self.strCmp(src.orderCode, dst.orderCode) == src.orderCode
-        ordAdata = src if srcBigger else dst
-        ordBdata = dst if srcBigger else src
-        
-        CONTEXT = {}
-        balance = self.Balance(0, 0)
-        
-        try:
-            with transaction.atomic():
-                # Aggressive locking, but I prefere instead of thinking of all possible quota to lock
-                lock_objects([self.event])
-                ordA = self.SideInstance(ordAdata, request)
-                ordA.verifyPaymentsRefundsStatus()
-                ordB = self.SideInstance(ordBdata, request)
-                ordB.verifyPaymentsRefundsStatus()
-                
-        except FzException as fe:
-            return JsonResponse(fe.extraData, status=status.HTTP_412_PRECONDITION_FAILED)
-        
-        logger.info(
-            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Success"
-        )
-
-        return HttpResponse("")
-    
-    def exchangeOneWay(self, src, dest, ocmDest: FzOrderChangeManager):
-        if src is None:
-            return 0
-        if dest is not None:
-            ocmDest.change_item(
-                position=dest.pos,
-                item=newRootItem,
-                variation=newRootItemVariation
-            )
-            ocmDest.change_price(
-                position=rootPosition,
-                price=0 #newRootItem.default_price if newRootItemVariation is None else newRootItemVariation.default_price
-            )
-        else:
-            pass
-    def exchange(self, a, b, ocmA: FzOrderChangeManager, ocmB: FzOrderChangeManager):
-        pass
-
-
-    def strCmp(self, x, y):
-        if len(x) > len(y):
-            return x
-        if len(x)==len(y):
-            return min(x,y) 
-        else:
-            return y
-        
+       
 class Balance:
     balanceA: int
     balanceB: int
@@ -227,3 +114,233 @@ class SideInstance:
                     f"ApiExchangeRooms [{self.order.code}]: Refund {refund.full_id}: invalid state {refund.state}"
                 )
                 raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'})
+
+
+
+@method_decorator(xframe_options_exempt, "dispatch")
+@method_decorator(csrf_exempt, "dispatch")
+class ApiExchangeRooms(APIView, View):
+    permission = "can_change_orders"
+    def post(self, request, organizer, event, *args, **kwargs):
+        data = request.data
+        
+        # Source info
+        if "sourceOrderCode" not in data or not isinstance(data["sourceOrderCode"], str):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "sourceOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "sourceRoomPositionId" not in data or not isinstance(data["sourceRoomPositionId"], int):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "sourceRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "sourceEarlyPositionId" in data and not isinstance(data["sourceEarlyPositionId"], int):
+            return JsonResponse(
+                {"error": 'Invalid parameter "sourceEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "sourceLatePositionId" in data and not isinstance(data["sourceLatePositionId"], int):
+            return JsonResponse(
+                {"error": 'Invalid parameter "sourceLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # Dest info
+        if "destOrderCode" not in data or not isinstance(data["destOrderCode"], str):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "destOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "destRoomPositionId" not in data or not isinstance(data["destRoomPositionId"], int):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "destRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "destEarlyPositionId" in data and not isinstance(data["destEarlyPositionId"], int):
+            return JsonResponse(
+                {"error": 'Invalid parameter "destEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "destLatePositionId" in data and not isinstance(data["destLatePositionId"], int):
+            return JsonResponse(
+                {"error": 'Invalid parameter "destLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        # Extra
+        if "manualPaymentComment" in data and not isinstance(data["manualPaymentComment"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "manualPaymentComment"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "manualRefundComment" in data and not isinstance(data["manualRefundComment"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "manualRefundComment"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        src = SideData(data, "source")
+        dst = SideData(data, "dest")
+        paymentComment = data.get("manualPaymentComment", None)
+        refundComment = data.get("manualRefundComment", None)
+        
+        logger.info(
+            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Got from req  src=[{src}]  dst=[{dst}]"
+        )
+        
+        if src.roomPosId == None:
+            return JsonResponse(
+                {"error": 'Source should have a valid room position!'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if dst.roomPosId == None:
+            return JsonResponse(
+                {"error": 'Dest should have a valid room position!'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create an order over the orders to acquire the locks. In this way we prevent deadlocks
+        # Ugly ass btw
+        srcBigger = strCmp(src.orderCode, dst.orderCode) == src.orderCode
+        ordAdata = src if srcBigger else dst
+        ordBdata = dst if srcBigger else src
+        
+        balance = Balance(0, 0)
+        
+        try:
+            with transaction.atomic():
+                # Aggressive locking, but I prefere instead of thinking of all possible quota to lock
+                lock_objects([request.event])
+                ordA = SideInstance(ordAdata, request)
+                ordA.verifyPaymentsRefundsStatus()
+                ordB = SideInstance(ordBdata, request)
+                ordB.verifyPaymentsRefundsStatus()
+                logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Loaded instances and verified payments/refunds")
+                
+                balance += exchange(ordA.room, ordB.room, ordA.ocm, ordB.ocm)
+                balance += exchange(ordA.early, ordB.early, ordA.ocm, ordB.ocm)
+                balance += exchange(ordA.late, ordB.late, ordA.ocm, ordB.ocm)
+                logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Exchanges done")
+                
+                fixPaymentStatus(balance.balanceA, ordA.order, refundComment, paymentComment, request, {"order": ordA.order, "event": request.event})
+                fixPaymentStatus(balance.balanceB, ordB.order, refundComment, paymentComment, request, {"order": ordB.order, "event": request.event})
+                logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Payment status fixed")
+                
+                ordA.ocm.fz_enable_locking = False
+                ordB.ocm.fz_enable_locking = False
+                ordA.ocm.commit(check_quotas=False)
+                ordB.ocm.commit(check_quotas=False)
+                
+        except FzException as fe:
+            return JsonResponse(fe.extraData, status=status.HTTP_412_PRECONDITION_FAILED)
+        
+        logger.info(
+            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Success"
+        )
+
+        return HttpResponse("")
+    
+def fixPaymentStatus(balance: int, order: Order, refundComment: str, paymentComment: str, request, orderContext):
+    amount = serializers.DecimalField(max_digits=13, decimal_places=2).to_internal_value(str(balance))
+    dateNow = serializers.DateTimeField().to_internal_value(now())
+    
+    if balance > 0:
+        refundData = {
+            "state": OrderRefund.REFUND_STATE_DONE,
+            "source": OrderRefund.REFUND_SOURCE_EXTERNAL,
+            "amount": amount,
+            "execution_date": dateNow,
+            "comment": refundComment,
+            "provider": FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
+            # mark canceled/pending not needed
+        }
+        refundSerializer = OrderRefundCreateSerializer(data=refundData, context=orderContext)
+        refundSerializer.is_valid(raise_exception=True)
+        refundSerializer.save()
+        newRefund: OrderRefund = refundSerializer.instance
+        # Double log to follow what the api.views.order.RefundViewSet.create() does
+        order.log_action(
+            'pretix.event.order.refund.created', {
+                'local_id': newRefund.local_id,
+                'provider': newRefund.provider,
+            },
+            user=request.user if request.user.is_authenticated else None,
+            auth=request.auth
+        )
+        order.log_action(
+            f'pretix.event.order.refund.{newRefund.state}', {
+                'local_id': newRefund.local_id,
+                'provider': newRefund.provider,
+            },
+            user=request.user if request.user.is_authenticated else None,
+            auth=request.auth
+        )
+    elif balance < 0:
+        paymentData = {
+            "state": OrderPayment.PAYMENT_STATE_PENDING,
+            "amount": amount,
+            "payment_date": dateNow,
+            "sendEmail": False,
+            "provider": FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
+            "info": {
+                "issued_by": FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
+                "comment": paymentComment
+            }
+        }                
+        paymentSerializer = OrderPaymentCreateSerializer(data=paymentData, context=orderContext)
+        paymentSerializer.is_valid(raise_exception=True)
+        paymentSerializer.save()
+        newPayment: OrderPayment = paymentSerializer.instance
+        order.log_action(
+            'pretix.event.order.payment.started', {
+                'local_id': newPayment.local_id,
+                'provider': newPayment.provider,
+            },
+            user=request.user if request.user.is_authenticated else None,
+            auth=request.auth
+        )
+        newPayment.confirm(
+            user=request.user if request.user.is_authenticated else None,
+            auth=request.auth,
+            count_waitinglist=False,
+            ignore_date=True,
+            force=True,
+            send_mail=False,
+        )
+    
+    
+# We return >0 if dest should pay more, <0 if dest should instead get a refund
+def transfer(src: Element, dest: Element, addonTo: OrderPosition, ocmDest: FzOrderChangeManager) -> int:
+    # This DOES NOT copy or transfer extra position information!!
+    # With the current OCM implementation we have no access to the exact newly created position, making us impossible
+    # the job of updating with the extra information
+    if src is None:
+        if dest is None:
+            return 0
+        else:
+            ocmDest.cancel(dest.pos)
+            return -dest.paid
+    else:
+        if dest is None:
+            ocmDest.add_position_no_addon_validation(
+                item=src.item,
+                variation=src.itemVar,
+                price=src.price,
+                addon_to=addonTo,
+                subevent=src.pos.subevent,
+                seat=src.pos.seat,
+                #membership=rootPosition.membership,
+                valid_from=src.pos.valid_from,
+                valid_until=src.pos.valid_until,
+                is_bundled=False
+            )
+            return src.price
+        else:
+            ocmDest.change_item(dest.pos, src.item, src.itemVar)
+            ocmDest.change_price(dest.pos, src.price)
+            ocmDest.change_subevent(dest.pos, src.pos.subevent)
+            ocmDest.change_seat(dest.pos, src.pos.seat)
+            ocmDest.change_valid_from(dest.pos, src.pos.valid_from)
+            ocmDest.change_valid_until(dest.pos, src.pos.valid_until)
+            # Currently we cannot change the bundle status
+            return src.price - dest.paid
+            
+def exchange(a: Element, b: Element, ocmA: FzOrderChangeManager, ocmB: FzOrderChangeManager) -> Balance:
+    balB = transfer(a, b, ocmB)
+    balA = transfer(b, a, ocmA)
+    return Balance(balA, balB)
+
+def strCmp(x, y):
+    if len(x) > len(y):
+        return x
+    if len(x)==len(y):
+        return min(x,y) 
+    else:
+        return y
