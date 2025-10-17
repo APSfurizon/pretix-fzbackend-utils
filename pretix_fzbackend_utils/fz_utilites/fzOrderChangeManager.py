@@ -1,4 +1,5 @@
 import logging
+from collections import namedtuple
 from decimal import Decimal
 from datetime import datetime
 from pretix.base.services.orders import OrderChangeManager, OrderError, error_messages
@@ -13,12 +14,17 @@ from pretix.base.models import (
 logger = logging.getLogger(__name__)
 
 class FzOrderChangeManager(OrderChangeManager):
+    NopOperation = namedtuple('ItemOperation', ())
+    
     fz_enable_locking = True
     
     # If fz_enable_locking is set to False, the caller takes responsability for calling `lock_objects([self.event])` once per transaction
     def _create_locks(self):
         if self.fz_enable_locking:
             super()._create_locks()
+            
+    def nopOperation(self):
+        self._operations.append(self.NopOperation())
 
     # Like add_position, but without addon hierarchy validation
     def add_position_no_addon_validation(self, item: Item, variation: ItemVariation, price: Decimal, addon_to: OrderPosition = None,

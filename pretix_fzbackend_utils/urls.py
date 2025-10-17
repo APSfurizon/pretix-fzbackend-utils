@@ -1,6 +1,6 @@
 from django.urls import include, path, re_path
 
-from .views import ApiConvertTicketOnlyOrder, ApiSetItemBundle, FznackendutilsSettings
+from .views import ApiConvertTicketOnlyOrder, ApiTransferOrder, ApiSetItemBundle, FznackendutilsSettings
 
 urlpatterns = [
     re_path(
@@ -24,6 +24,11 @@ event_patterns = [
                     "convert-ticket-only-order/",
                     ApiConvertTicketOnlyOrder.as_view(),
                     name="convert-ticket-only-order",
+                ),
+                path(
+                    "transfer-order/",
+                    ApiTransferOrder.as_view(),
+                    name="transfer-order",
                 ),
             ]
         ),
