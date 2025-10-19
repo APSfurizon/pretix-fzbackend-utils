@@ -59,7 +59,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "newRootItemId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "newRootItemVariationId" in data and not isinstance(data["newRootItemVariationId"], int):
+        if "newRootItemVariationId" in data and data["newRootItemVariationId"] and not isinstance(data["newRootItemVariationId"], int):
             return JsonResponse(
                 {"error": 'Invalid parameter "newRootItemVariationId"'}, status=status.HTTP_400_BAD_REQUEST
             )

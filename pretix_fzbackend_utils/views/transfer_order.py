@@ -61,11 +61,11 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "newUserId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "manualPaymentComment" in data and not isinstance(data["manualPaymentComment"], str):
+        if "manualPaymentComment" in data and data["manualPaymentComment"] and not isinstance(data["manualPaymentComment"], str):
             return JsonResponse(
                 {"error": 'Invalid parameter "manualPaymentComment"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "manualRefundComment" in data and not isinstance(data["manualRefundComment"], str):
+        if "manualRefundComment" in data and data["manualRefundComment"] and not isinstance(data["manualRefundComment"], str):
             return JsonResponse(
                 {"error": 'Invalid parameter "manualRefundComment"'}, status=status.HTTP_400_BAD_REQUEST
             )

@@ -133,11 +133,11 @@ class ApiExchangeRooms(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "sourceRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "sourceEarlyPositionId" in data and not isinstance(data["sourceEarlyPositionId"], int):
+        if "sourceEarlyPositionId" in data and data["sourceEarlyPositionId"] and not isinstance(data["sourceEarlyPositionId"], int):
             return JsonResponse(
                 {"error": 'Invalid parameter "sourceEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "sourceLatePositionId" in data and not isinstance(data["sourceLatePositionId"], int):
+        if "sourceLatePositionId" in data and data["sourceLatePositionId"] and not isinstance(data["sourceLatePositionId"], int):
             return JsonResponse(
                 {"error": 'Invalid parameter "sourceLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -150,20 +150,20 @@ class ApiExchangeRooms(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "destRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "destEarlyPositionId" in data and not isinstance(data["destEarlyPositionId"], int):
+        if "destEarlyPositionId" in data and data["destEarlyPositionId"] and not isinstance(data["destEarlyPositionId"], int):
             return JsonResponse(
                 {"error": 'Invalid parameter "destEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "destLatePositionId" in data and not isinstance(data["destLatePositionId"], int):
+        if "destLatePositionId" in data and data["destLatePositionId"] and not isinstance(data["destLatePositionId"], int):
             return JsonResponse(
                 {"error": 'Invalid parameter "destLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
         # Extra
-        if "manualPaymentComment" in data and not isinstance(data["manualPaymentComment"], str):
+        if "manualPaymentComment" in data and data["manualPaymentComment"] and not isinstance(data["manualPaymentComment"], str):
             return JsonResponse(
                 {"error": 'Invalid parameter "manualPaymentComment"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "manualRefundComment" in data and not isinstance(data["manualRefundComment"], str):
+        if "manualRefundComment" in data and data["manualRefundComment"] and not isinstance(data["manualRefundComment"], str):
             return JsonResponse(
                 {"error": 'Invalid parameter "manualRefundComment"'}, status=status.HTTP_400_BAD_REQUEST
             )
