@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from django import forms
@@ -13,8 +12,9 @@ from django.views.decorators.csrf import csrf_exempt
 from pretix.base.forms import SettingsForm
 from pretix.base.models import Event, OrderPosition
 from pretix.base.settings import GlobalSettingsObject
-from pretix.control.views import UpdateView
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from rest_framework import status
+from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,10 @@ class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
 
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
-class ApiSetItemBundle(UpdateView, View):
-    def post(request, *args, **kwargs):
-        request = request.request
+class ApiSetItemBundle(APIView, View):
+    permission = "can_change_orders"
+
+    def post(self, request, organizer, event, *args, **kwargs):
         token = request.headers.get("fz-backend-api")
         settings = GlobalSettingsObject().settings
         if settings.fzbackendutils_internal_endpoint_token and (
@@ -62,17 +63,17 @@ class ApiSetItemBundle(UpdateView, View):
         ):
             return JsonResponse({"error": "Invalid token"}, status=403)
 
-        data = json.loads(request.body)
+        data = request.data
         if "position" not in data or not isinstance(data["position"], int):
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "position"'}, status=400
+                {"error": 'Missing or invalid parameter "position"'}, status=status.HTTP_400_BAD_REQUEST
             )
         if "is_bundle" not in data or not isinstance(data["is_bundle"], bool):
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "is_bundle"'}, status=400
+                {"error": 'Missing or invalid parameter "is_bundle"'}, status=status.HTTP_400_BAD_REQUEST
             )
         logger.info(
-            f"Backend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
+            f"FzBackend is trying to set is_bundle for position {data['position']} to {data['is_bundle']}"
         )
 
         position: OrderPosition = get_object_or_404(
@@ -82,7 +83,7 @@ class ApiSetItemBundle(UpdateView, View):
         position.is_bundled = data["is_bundle"]
         position.save(update_fields=["is_bundled"])
         logger.info(
-            f"Backend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
+            f"FzBackend successfully set is_bundle for position {data['position']} to {data['is_bundle']}"
         )
 
         return HttpResponse("")

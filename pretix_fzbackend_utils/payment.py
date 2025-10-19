@@ -8,9 +8,12 @@ from pretix.base.payment import ManualPayment
 
 logger = logging.getLogger(__name__)
 
+FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER = "fzbackend-manual"
+FZ_MANUAL_PAYMENT_PROVIDER_ISSUER = "fz-backend"
+
 
 class FzbackendManualPaymentProvider(ManualPayment):
-    identifier = "fzbackend-manual"
+    identifier = FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER
     verbose_name = _("FzBackendUtils Manual payment")
     public_name = _("FzBackendUtils - Manual payment")
 
