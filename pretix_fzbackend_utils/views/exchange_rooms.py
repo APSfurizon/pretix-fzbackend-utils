@@ -58,7 +58,7 @@ class SideData:
         self.earlyPosId = data.get(f"{side}EarlyPositionId", None)
         self.latePosId = data.get(f"{side}LatePositionId", None)
     def __str__(self):
-        return f"[{self.orderCode}{{roomPosId={self.roomPosId} earlyPosId={self.earlyPosId} latePosId={self.latePosId}}}]"
+        return f"{self.orderCode}{{roomPosId={self.roomPosId} earlyPosId={self.earlyPosId} latePosId={self.latePosId}}}"
     
 class Element:
     pos: OrderPosition
@@ -69,7 +69,8 @@ class Element:
     itemPrice: int
     def __init__(self, positionId, order):
         self.pos = get_object_or_404(
-            OrderPosition.objects.select_for_update(of=OF_SELF).filter(pk=positionId, order__pk=order.pk)
+            # Cancelation validation is done later for improved error reporting
+            OrderPosition.all.select_for_update(of=OF_SELF).filter(pk=positionId, order__pk=order.pk)
         )
         self.paid = self.pos.price
         self.item = self.pos.item
@@ -94,9 +95,26 @@ class SideInstance:
             notify=False,
             reissue_invoice=False,
         )
-        self.room = self.Element(data.roomPosId, self.order)
-        self.early = self.Element(data.earlyPosId, self.order) if data.earlyPosId else None
-        self.late = self.Element(data.latePosId, self.order) if data.latePosId else None
+        self.room = Element(data.roomPosId, self.order)
+        self.early = Element(data.earlyPosId, self.order) if data.earlyPosId else None
+        self.late = Element(data.latePosId, self.order) if data.latePosId else None
+        
+    def verifyCancelation(self):
+        if self.room.pos.canceled:
+            logger.error(
+                f"ApiExchangeRooms [{self.order.code}]: Room position {self.room.pos.pk} is canceled"
+            )
+            raise FzException("", extraData={"error": f'Room position {self.room.pos.pk} is canceled'})
+        if self.early and self.early.pos.canceled:
+            logger.error(
+                f"ApiExchangeRooms [{self.order.code}]: Early position {self.early.pos.pk} is canceled"
+            )
+            raise FzException("", extraData={"error": f'Early position {self.early.pos.pk} is canceled'})
+        if self.late and self.late.pos.canceled:
+            logger.error(
+                f"ApiExchangeRooms [{self.order.code}]: Late position {self.late.pos.pk} is canceled"
+            )
+            raise FzException("", extraData={"error": f'Late position {self.late.pos.pk} is canceled'})
             
     def verifyPaymentsRefundsStatus(self):
         # Already ordered in the Meta class of OrderPayment/Refund. Order is important for deadlock prevention
@@ -116,7 +134,7 @@ class SideInstance:
                 raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'})
 
 
-
+# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/exchange-rooms/ -H "Authorization: Token AAAAA" -H "Content-Type: application/json" -X Post --data '{"manualPaymentComment": "paystocazzo", "manualRefundComment": "paystamerda","sourceOrderCode": "W09SA", "sourceRoomPositionId": 110, "sourceEarlyPositionId": 111, "sourceLatePositionId": 128, "destOrderCode": "U0YUV", "destRoomPositionId": 113, "destEarlyPositionId": 114, "destLatePositionId": 115}'
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiExchangeRooms(APIView, View):
@@ -174,7 +192,7 @@ class ApiExchangeRooms(APIView, View):
         refundComment = data.get("manualRefundComment", None)
         
         logger.info(
-            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Got from req  src=[{src}]  dst=[{dst}]"
+            f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Got from req  src={src}  dst={dst}"
         )
         
         if src.roomPosId == None:
@@ -199,14 +217,19 @@ class ApiExchangeRooms(APIView, View):
                 # Aggressive locking, but I prefere instead of thinking of all possible quota to lock
                 lock_objects([request.event])
                 ordA = SideInstance(ordAdata, request)
+                ordA.verifyCancelation()
                 ordA.verifyPaymentsRefundsStatus()
                 ordB = SideInstance(ordBdata, request)
+                ordB.verifyCancelation()
                 ordB.verifyPaymentsRefundsStatus()
                 logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Loaded instances and verified payments/refunds")
                 
-                balance += exchange(ordA.room, ordB.room, ordA.ocm, ordB.ocm)
-                balance += exchange(ordA.early, ordB.early, ordA.ocm, ordB.ocm)
-                balance += exchange(ordA.late, ordB.late, ordA.ocm, ordB.ocm)
+                rootPosA = ordA.room.pos
+                rootPosB = ordB.room.pos
+                
+                balance += exchange(ordA.room, ordB.room, None, None, ordA.ocm, ordB.ocm)
+                balance += exchange(ordA.early, ordB.early, rootPosA, rootPosB, ordA.ocm, ordB.ocm)
+                balance += exchange(ordA.late, ordB.late, rootPosA, rootPosB, ordA.ocm, ordB.ocm)
                 logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Exchanges done")
                 
                 fixPaymentStatus(balance.balanceA, ordA.order, refundComment, paymentComment, request, {"order": ordA.order, "event": request.event})
@@ -228,10 +251,10 @@ class ApiExchangeRooms(APIView, View):
         return HttpResponse("")
     
 def fixPaymentStatus(balance: int, order: Order, refundComment: str, paymentComment: str, request, orderContext):
-    amount = serializers.DecimalField(max_digits=13, decimal_places=2).to_internal_value(str(balance))
+    amount = serializers.DecimalField(max_digits=13, decimal_places=2).to_internal_value(str(abs(balance)))
     dateNow = serializers.DateTimeField().to_internal_value(now())
     
-    if balance > 0:
+    if balance < 0:
         refundData = {
             "state": OrderRefund.REFUND_STATE_DONE,
             "source": OrderRefund.REFUND_SOURCE_EXTERNAL,
@@ -262,7 +285,7 @@ def fixPaymentStatus(balance: int, order: Order, refundComment: str, paymentComm
             user=request.user if request.user.is_authenticated else None,
             auth=request.auth
         )
-    elif balance < 0:
+    elif balance > 0:
         paymentData = {
             "state": OrderPayment.PAYMENT_STATE_PENDING,
             "amount": amount,
@@ -325,16 +348,20 @@ def transfer(src: Element, dest: Element, addonTo: OrderPosition, ocmDest: FzOrd
         else:
             ocmDest.change_item(dest.pos, src.item, src.itemVar)
             ocmDest.change_price(dest.pos, src.price)
-            ocmDest.change_subevent(dest.pos, src.pos.subevent)
-            ocmDest.change_seat(dest.pos, src.pos.seat)
-            ocmDest.change_valid_from(dest.pos, src.pos.valid_from)
-            ocmDest.change_valid_until(dest.pos, src.pos.valid_until)
+            if src.pos.subevent is not None:
+                ocmDest.change_subevent(dest.pos, src.pos.subevent)
+            if src.pos.seat is not None:
+                ocmDest.change_seat(dest.pos, src.pos.seat)
+            if src.pos.valid_from is not None:
+                ocmDest.change_valid_from(dest.pos, src.pos.valid_from)
+            if src.pos.valid_until is not None:
+                ocmDest.change_valid_until(dest.pos, src.pos.valid_until)
             # Currently we cannot change the bundle status
             return src.price - dest.paid
             
-def exchange(a: Element, b: Element, ocmA: FzOrderChangeManager, ocmB: FzOrderChangeManager) -> Balance:
-    balB = transfer(a, b, ocmB)
-    balA = transfer(b, a, ocmA)
+def exchange(a: Element, b: Element, rootPositionA: OrderPosition, rootPositionB: OrderPosition, ocmA: FzOrderChangeManager, ocmB: FzOrderChangeManager) -> Balance:
+    balB = transfer(a, b, rootPositionB, ocmB)
+    balA = transfer(b, a, rootPositionA, ocmA)
     return Balance(balA, balB)
 
 def strCmp(x, y):
