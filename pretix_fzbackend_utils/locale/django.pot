@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-02-27 13:15+0100\n"
+"POT-Creation-Date: 2025-10-19 20:53+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,27 +21,41 @@ msgstr ""
 msgid "Pretix fz-backend utils"
 msgstr ""
 
-#: pretix_fzbackend_utils/apps.py:19
+#: pretix_fzbackend_utils/apps.py:20
 msgid "Pretix utils plugin to work together with fz-backend"
 msgstr ""
 
-#: pretix_fzbackend_utils/payment.py:20
+#: pretix_fzbackend_utils/general_views.py:24
+msgid "Order redirect url"
+msgstr ""
+
+#: pretix_fzbackend_utils/general_views.py:26
+#, python-brace-format
+msgid ""
+"When an user has done, has modified or has paid an order, pretix will "
+"redirect him to this spacified url, with the order code and secret appended "
+"as query parameters (<code>?c={orderCode}&s={orderSecret}&m={statusMessages}"
+"</code>). This page should call <code>/api/v1/orders-workflow/link-order</"
+"code> of the backend to link this order to the logged in user."
+msgstr ""
+
+#: pretix_fzbackend_utils/payment.py:17
 msgid "FzBackendUtils Manual payment"
 msgstr ""
 
-#: pretix_fzbackend_utils/payment.py:21
+#: pretix_fzbackend_utils/payment.py:18
 msgid "FzBackendUtils - Manual payment"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:60
+#: pretix_fzbackend_utils/signals.py:66
 msgid "Fz-backend settings"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:73
+#: pretix_fzbackend_utils/signals.py:86
 msgid "[FZBACKEND] Internal endpoint token"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:74
+#: pretix_fzbackend_utils/signals.py:88
 msgid ""
 "This plugin exposes some api for extra access to the fz-backend. This token "
 "needs to be specified in the <code>fz-backend-api</code> header to access "
@@ -64,18 +78,4 @@ msgstr ""
 
 #: pretix_fzbackend_utils/templates/pretix_fzbackend_utils/settings.html:19
 msgid "Save"
-msgstr ""
-
-#: pretix_fzbackend_utils/views.py:24
-msgid "Order redirect url"
-msgstr ""
-
-#: pretix_fzbackend_utils/views.py:25
-#, python-brace-format
-msgid ""
-"When an user has done, has modified or has paid an order, pretix will "
-"redirect him to this spacified url, with the order code and secret appended "
-"as query parameters (<code>?c={orderCode}&s={orderSecret}&m={statusMessages}"
-"</code>). This page should call <code>/api/v1/orders-workflow/link-order</"
-"code> of the backend to link this order to the logged in user."
 msgstr ""
