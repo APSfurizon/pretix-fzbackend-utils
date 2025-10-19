@@ -2,8 +2,8 @@ from django.urls import include, path, re_path
 
 from .general_views import ApiSetItemBundle, FznackendutilsSettings
 from .views.convert_ticket_only import ApiConvertTicketOnlyOrder
-from .views.transfer_order import ApiTransferOrder
 from .views.exchange_rooms import ApiExchangeRooms
+from .views.transfer_order import ApiTransferOrder
 
 urlpatterns = [
     re_path(

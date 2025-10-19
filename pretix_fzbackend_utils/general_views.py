@@ -1,39 +1,20 @@
 import logging
 import re
-from typing import List
-from pretix_fzbackend_utils.payment import FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER, FZ_MANUAL_PAYMENT_PROVIDER_ISSUER
-from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
-from pretix_fzbackend_utils.fz_utilites.fzException import FzException
-from rest_framework.views import APIView
-from rest_framework import status, serializers
 from django import forms
-from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-from django.utils.timezone import get_current_timezone, make_aware, now
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
-from pretix.api.serializers.orderchange import OrderPositionInfoPatchSerializer
-from pretix.api.serializers.order import OrderRefundCreateSerializer, OrderPaymentCreateSerializer
-from pretix.helpers import OF_SELF
 from pretix.base.forms import SettingsForm
+from pretix.base.models import Event, OrderPosition
 from pretix.base.settings import GlobalSettingsObject
-from pretix.base.models import (
-    Item, ItemVariation, Event, Order,
-    OrderPosition, OrderPayment, OrderRefund,
-    QuestionAnswer, Question
-)
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
-from pretix.base.services.locking import lock_objects
-from pretix.base.services import tickets
-from pretix.base.signals import (
-    order_modified, order_paid,
-)
-
+from rest_framework import status
+from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +54,7 @@ class FznackendutilsSettings(EventSettingsViewMixin, EventSettingsFormView):
 @method_decorator(csrf_exempt, "dispatch")
 class ApiSetItemBundle(APIView, View):
     permission = "can_change_orders"
+
     def post(self, request, organizer, event, *args, **kwargs):
         token = request.headers.get("fz-backend-api")
         settings = GlobalSettingsObject().settings
@@ -105,4 +87,3 @@ class ApiSetItemBundle(APIView, View):
         )
 
         return HttpResponse("")
-

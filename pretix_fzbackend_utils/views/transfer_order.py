@@ -1,50 +1,47 @@
-import logging
-import re
 from typing import List
-from pretix_fzbackend_utils.payment import FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER, FZ_MANUAL_PAYMENT_PROVIDER_ISSUER
-from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
-from pretix_fzbackend_utils.fz_utilites.fzException import FzException
-from rest_framework.views import APIView
-from rest_framework import status, serializers
-from django import forms
+
+import logging
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
-from django.utils.timezone import get_current_timezone, make_aware, now
 from django.utils.decorators import method_decorator
-from django.utils.translation import gettext_lazy as _
+from django.utils.timezone import now
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
-from pretix.api.serializers.orderchange import OrderPositionInfoPatchSerializer
-from pretix.api.serializers.order import OrderRefundCreateSerializer, OrderPaymentCreateSerializer
-from pretix.helpers import OF_SELF
-from pretix.base.forms import SettingsForm
-from pretix.base.settings import GlobalSettingsObject
+from pretix.api.serializers.order import (
+    OrderPaymentCreateSerializer,
+    OrderRefundCreateSerializer,
+)
 from pretix.base.models import (
-    Item, ItemVariation, Event, Order,
-    OrderPosition, OrderPayment, OrderRefund,
-    QuestionAnswer, Question
+    Order,
+    OrderPayment,
+    OrderRefund,
+    Question,
+    QuestionAnswer,
 )
-from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
-from pretix.base.services.locking import lock_objects
-from pretix.base.services import tickets
-from pretix.base.signals import (
-    order_modified, order_paid,
-)
+from pretix.helpers import OF_SELF
+from rest_framework import serializers, status
+from rest_framework.views import APIView
 
+from pretix_fzbackend_utils.fz_utilites.fzException import FzException
+from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
+from pretix_fzbackend_utils.payment import (
+    FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
+    FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
+)
 
 logger = logging.getLogger(__name__)
 
-# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/transfer-order/ -H "Authorization: Token AAAAAAA" -H "Content-Type: application/json" -X Post --data '{"orderCode": "J0SN9", "manualPaymentComment": "stocazzo", "positionId": 109, "questionId": 3, "newUserId": 121, "manualRefundComment": "staminchia"}'
+
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiTransferOrder(APIView, View):
     permission = "can_change_orders"
+
     def post(self, request, organizer, event, *args, **kwargs):
         data = request.data
-        
+
         if "orderCode" not in data or not isinstance(data["orderCode"], str):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "orderCode"'}, status=status.HTTP_400_BAD_REQUEST
@@ -69,20 +66,20 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Invalid parameter "manualRefundComment"'}, status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         orderCode = data["orderCode"]
         positionId = data["positionId"]
         questionId = data["questionId"]
         newUserId = data["newUserId"]
         paymentComment = data.get("manualPaymentComment", None)
         refundComment = data.get("manualRefundComment", None)
-        
+
         logger.info(
             f"ApiTransferOrder [{orderCode}]: Got from req posId={positionId} qId={questionId} newUserId={newUserId}"
         )
 
         CONTEXT = {"event": request.event, "pdf_data": False, "check_quotas": False}
-        
+
         try:
             with transaction.atomic():
                 # Actually change the answer
@@ -118,11 +115,15 @@ class ApiTransferOrder(APIView, View):
                     }
                 )
                 logger.debug(f"ApiTransferOrder [{orderCode}]: Answer updated")
-                
+
                 # Prevent refunds so admin CANNOT refund the wrong owner
                 totalPaid = 0
                 # Already ordered in the Meta class of OrderPayment/Refund. Order is important for deadlock prevention
-                payments: List[OrderPayment] = OrderPayment.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[OrderPayment.PAYMENT_STATE_CONFIRMED, OrderPayment.PAYMENT_STATE_CREATED, OrderPayment.PAYMENT_STATE_PENDING])
+                payments: List[OrderPayment] = OrderPayment.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
+                    OrderPayment.PAYMENT_STATE_CONFIRMED,
+                    OrderPayment.PAYMENT_STATE_CREATED,
+                    OrderPayment.PAYMENT_STATE_PENDING
+                ])
                 for payment in payments:
                     if payment.state != OrderPayment.PAYMENT_STATE_CONFIRMED:
                         logger.error(
@@ -140,7 +141,12 @@ class ApiTransferOrder(APIView, View):
                         auth=request.auth
                     )
                     totalPaid += payment.amount
-                refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[OrderRefund.REFUND_STATE_CREATED, OrderRefund.REFUND_STATE_TRANSIT, OrderRefund.REFUND_STATE_DONE, OrderRefund.REFUND_STATE_EXTERNAL])
+                refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
+                    OrderRefund.REFUND_STATE_CREATED,
+                    OrderRefund.REFUND_STATE_TRANSIT,
+                    OrderRefund.REFUND_STATE_DONE,
+                    OrderRefund.REFUND_STATE_EXTERNAL
+                ])
                 for refund in refunds:
                     if refund.state in [OrderRefund.REFUND_STATE_CREATED, OrderRefund.REFUND_STATE_TRANSIT]:
                         logger.error(
@@ -148,16 +154,16 @@ class ApiTransferOrder(APIView, View):
                         )
                         raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'})
                     totalPaid -= refund.amount
-                    
+
                 orderContext = {"order": order, **CONTEXT}
-                
+
                 logger.debug(f"ApiTransferOrder [{orderCode}]: Payments marked as refunded")
-                
+
                 # It's enough to mark payment as refunded. However this may seem an inconsistent state (order paid with no valid payments),
                 # so we create a refund and a payment objects as well
                 amount = serializers.DecimalField(max_digits=13, decimal_places=2).to_internal_value(str(totalPaid))
                 dateNow = serializers.DateTimeField().to_internal_value(now())
-                
+
                 # Perform refund
                 refundData = {
                     "state": OrderRefund.REFUND_STATE_DONE,
@@ -202,7 +208,7 @@ class ApiTransferOrder(APIView, View):
                         "issued_by": FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
                         "comment": paymentComment
                     }
-                }                
+                }
                 paymentSerializer = OrderPaymentCreateSerializer(data=paymentData, context=orderContext)
                 paymentSerializer.is_valid(raise_exception=True)
                 paymentSerializer.save()
@@ -224,7 +230,7 @@ class ApiTransferOrder(APIView, View):
                     send_mail=False,
                 )
                 logger.debug(f"ApiTransferOrder [{orderCode}]: Payment created")
-                
+
                 # Let OCM update the internal fields of the order
                 ocm = FzOrderChangeManager(
                     order=order,
@@ -236,13 +242,13 @@ class ApiTransferOrder(APIView, View):
                 ocm.nopOperation()
                 ocm.commit()
                 logger.debug(f"ApiTransferOrder [{orderCode}]: OCM nop")
-                
+
                 # Both already done inside ocm
-                #tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
-                #order_modified.send(sender=request.event, order=order)
+                # tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
+                # order_modified.send(sender=request.event, order=order)
         except FzException as fe:
             return JsonResponse(fe.extraData, status=status.HTTP_412_PRECONDITION_FAILED)
-        
+
         logger.info(
             f"ApiTransferOrder [{orderCode}]: Success"
         )

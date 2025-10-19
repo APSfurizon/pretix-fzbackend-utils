@@ -1,52 +1,32 @@
 import logging
-import re
-from typing import List
-from pretix_fzbackend_utils.payment import FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER, FZ_MANUAL_PAYMENT_PROVIDER_ISSUER
-from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
-from pretix_fzbackend_utils.fz_utilites.fzException import FzException
-from rest_framework.views import APIView
-from rest_framework import status, serializers
-from django import forms
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
-from django.utils.timezone import get_current_timezone, make_aware, now
 from django.utils.decorators import method_decorator
-from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from pretix.api.serializers.orderchange import OrderPositionInfoPatchSerializer
-from pretix.api.serializers.order import OrderRefundCreateSerializer, OrderPaymentCreateSerializer
-from pretix.helpers import OF_SELF
-from pretix.base.forms import SettingsForm
-from pretix.base.settings import GlobalSettingsObject
-from pretix.base.models import (
-    Item, ItemVariation, Event, Order,
-    OrderPosition, OrderPayment, OrderRefund,
-    QuestionAnswer, Question
-)
-from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
-from pretix.base.services.locking import lock_objects
+from pretix.base.models import Item, ItemVariation, Order, OrderPosition
 from pretix.base.services import tickets
-from pretix.base.signals import (
-    order_modified, order_paid,
-)
+from pretix.base.signals import order_modified
+from pretix.helpers import OF_SELF
+from rest_framework import status
+from rest_framework.views import APIView
 
+from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
 
 logger = logging.getLogger(__name__)
 
-# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/convert-ticket-only-order/ -H "Authorization: Token TOKEN" -H "Content-Type: application/json" -X Post --data '{"orderCode": "J0SN9", "rootPositionId": 99, "newRootItemId": 17}'
+
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiConvertTicketOnlyOrder(APIView, View):
     permission = "can_change_orders"
+
     def post(self, request, organizer, event, *args, **kwargs):
-        #TODO header check        
-        #907E7
-        
         data = request.data
+
         if "orderCode" not in data or not isinstance(data["orderCode"], str):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "orderCode"'}, status=status.HTTP_400_BAD_REQUEST
@@ -63,18 +43,19 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Invalid parameter "newRootItemVariationId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         orderCode = data["orderCode"]
         currentRootPositionId = data["rootPositionId"]
         newRootItemId = data["newRootItemId"]
         newRootItemVariationId = data.get("newRootItemVariationId", None)
-        
+
         logger.info(
-            f"ApiConvertTicketOnlyOrder [{orderCode}]: Got from req rootPosId={currentRootPositionId} newRootItemId={newRootItemId} newRootItemVariationId={newRootItemVariationId}"
+            f"ApiConvertTicketOnlyOrder [{orderCode}]: "
+            f"Got from req rootPosId={currentRootPositionId} newRootItemId={newRootItemId} newRootItemVariationId={newRootItemVariationId}"
         )
 
         CONTEXT = {"event": request.event, "pdf_data": False, "check_quotas": False}
-        
+
         with transaction.atomic():
             # OBTAINS OBJECTS FROM DB
             # Original Order
@@ -88,7 +69,8 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             rootItem: Item = rootPosition.item
             rootItemVariation: ItemVariation = rootPosition.variation
             logger.debug(
-                f"ApiConvertTicketOnlyOrder [{orderCode}]: Fetched current rootItem={rootItem.pk} rootItemVariation={rootItemVariation.pk if rootItemVariation else None}"
+                f"ApiConvertTicketOnlyOrder [{orderCode}]: "
+                f"Fetched current rootItem={rootItem.pk} rootItemVariation={rootItemVariation.pk if rootItemVariation else None}"
             )
             # new item and variation
             newRootItem: Item = get_object_or_404(
@@ -113,10 +95,10 @@ class ApiConvertTicketOnlyOrder(APIView, View):
                 addon_to=rootPosition,
                 subevent=rootPosition.subevent,
                 seat=rootPosition.seat,
-                #membership=rootPosition.membership,
+                # membership=rootPosition.membership,
                 valid_from=rootPosition.valid_from,
                 valid_until=rootPosition.valid_until,
-                is_bundled=True # IMPORTANT!
+                is_bundled=True  # IMPORTANT!
             )
             ocm.change_item(
                 position=rootPosition,
@@ -125,20 +107,20 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             )
             ocm.change_price(
                 position=rootPosition,
-                price=0 #newRootItem.default_price if newRootItemVariation is None else newRootItemVariation.default_price
+                price=0  # newRootItem.default_price if newRootItemVariation is None else newRootItemVariation.default_price
             )
             ocm.commit(check_quotas=False)
-            
+
             # Possible race condition, however Pretix does this inside their code as well
             # https://github.com/pretix/pretix/issues/5548
             newPosition: OrderPosition = order.positions.order_by('-positionid').first()
             logger.debug(
                 f"ApiConvertTicketOnlyOrder [{orderCode}]: Newly added position {newPosition.pk}"
             )
-            
+
             # We update with the extra data the newly created position
             rootPositionSerializer = OrderPositionInfoPatchSerializer(instance=rootPosition, context=CONTEXT, partial=True)
-            tempSerializer = OrderPositionInfoPatchSerializer(context=CONTEXT, data=rootPositionSerializer.data, partial=True) 
+            tempSerializer = OrderPositionInfoPatchSerializer(context=CONTEXT, data=rootPositionSerializer.data, partial=True)
             tempSerializer.is_valid(raise_exception=False)
             finalData = {k: v for k, v in rootPositionSerializer.data.items() if k not in tempSerializer.errors}
             newPositionSerializer = OrderPositionInfoPatchSerializer(instance=newPosition, context=CONTEXT, data=finalData, partial=True)
@@ -148,7 +130,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             rootPositionSerializer = OrderPositionInfoPatchSerializer(instance=rootPosition, context=CONTEXT, data={"answers": []}, partial=True)
             rootPositionSerializer.is_valid(raise_exception=True)
             rootPositionSerializer.save()
-            # We log the extra data changes. The position operations are logged inside OCM already 
+            # We log the extra data changes. The position operations are logged inside OCM already
             if 'answers' in finalData:
                 for a in finalData['answers']:
                     finalData[f'question_{a["question"]}'] = a["answer"]
@@ -166,10 +148,9 @@ class ApiConvertTicketOnlyOrder(APIView, View):
                     ]
                 }
             )
-            
-            tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
-            order_modified.send(sender=request.event, order=order) # Sadly signal has to be sent twice: One after changing the extra info, and one inside ocm
 
+            tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
+            order_modified.send(sender=request.event, order=order)  # Sadly signal has to be sent twice: One after changing the extra info, and one inside ocm
 
         logger.info(
             f"ApiConvertTicketOnlyOrder [{orderCode}]: Success"

@@ -1,28 +1,26 @@
 import logging
 from collections import namedtuple
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+from pretix.base.models import Item, ItemVariation, Membership, OrderPosition, Seat
+from pretix.base.models.event import SubEvent
+from pretix.base.models.tax import TaxedPrice, TaxRule
 from pretix.base.services.orders import OrderChangeManager, OrderError, error_messages
 from pretix.base.services.pricing import get_price
-from pretix.base.models.event import SubEvent
-from pretix.base.models.tax import TAXED_ZERO, TaxedPrice, TaxRule
-from pretix.base.models import (
-    Item, ItemVariation, Membership,
-    OrderPosition, Seat
-)
 
 logger = logging.getLogger(__name__)
 
+
 class FzOrderChangeManager(OrderChangeManager):
     NopOperation = namedtuple('ItemOperation', ())
-    
+
     fz_enable_locking = True
-    
+
     # If fz_enable_locking is set to False, the caller takes responsability for calling `lock_objects([event])` once per transaction
     def _create_locks(self):
         if self.fz_enable_locking:
             super()._create_locks()
-            
+
     def nopOperation(self):
         self._operations.append(self.NopOperation())
 
@@ -42,16 +40,16 @@ class FzOrderChangeManager(OrderChangeManager):
                     )
                 except Seat.DoesNotExist:
                     raise OrderError(error_messages['seat_invalid'])
-        
+
         try:
             if price is None:
                 price = get_price(item, variation, subevent=subevent, invoice_address=self._invoice_address)
             elif not isinstance(price, TaxedPrice):
                 price = item.tax(price, base_price_is='gross', invoice_address=self._invoice_address,
-                                    force_fixed_gross_price=True)
+                                 force_fixed_gross_price=True)
         except TaxRule.SaleNotAllowed:
             raise OrderError(self.error_messages['tax_rule_country_blocked'])
-        
+
         if price is None:
             raise OrderError(self.error_messages['product_invalid'])
         if item.variations.exists() and not variation:
