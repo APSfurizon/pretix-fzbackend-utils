@@ -144,6 +144,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             newPositionSerializer = OrderPositionInfoPatchSerializer(instance=newPosition, context=CONTEXT, data=finalData, partial=True)
             newPositionSerializer.is_valid(raise_exception=True)
             newPositionSerializer.save()
+            rootPosition.refresh_from_db()
             rootPositionSerializer = OrderPositionInfoPatchSerializer(instance=rootPosition, context=CONTEXT, data={"answers": []}, partial=True)
             rootPositionSerializer.is_valid(raise_exception=True)
             rootPositionSerializer.save()
