@@ -11,10 +11,10 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from pretix.base.forms import SettingsForm
 from pretix.base.models import Event, OrderPosition
-from pretix.base.settings import GlobalSettingsObject
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
 from rest_framework import status
 from rest_framework.views import APIView
+from .utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +56,7 @@ class ApiSetItemBundle(APIView, View):
     permission = "can_change_orders"
 
     def post(self, request, organizer, event, *args, **kwargs):
-        token = request.headers.get("fz-backend-api")
-        settings = GlobalSettingsObject().settings
-        if settings.fzbackendutils_internal_endpoint_token and (
-            not token or token != settings.fzbackendutils_internal_endpoint_token
-        ):
-            return JsonResponse({"error": "Invalid token"}, status=403)
+        verifyToken(request)
 
         data = request.data
         if "position" not in data or not isinstance(data["position"], int):

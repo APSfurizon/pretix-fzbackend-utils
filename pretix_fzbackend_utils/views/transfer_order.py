@@ -30,6 +30,7 @@ from pretix_fzbackend_utils.payment import (
     FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
     FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
 )
+from ..utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class ApiTransferOrder(APIView, View):
     permission = "can_change_orders"
 
     def post(self, request, organizer, event, *args, **kwargs):
+        verifyToken(request)
         data = request.data
 
         if "orderCode" not in data or not isinstance(data["orderCode"], str):

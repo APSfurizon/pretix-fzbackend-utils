@@ -13,6 +13,7 @@ from pretix.base.signals import order_modified
 from pretix.helpers import OF_SELF
 from rest_framework import status
 from rest_framework.views import APIView
+from ..utils import verifyToken
 
 from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
 
@@ -25,6 +26,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
     permission = "can_change_orders"
 
     def post(self, request, organizer, event, *args, **kwargs):
+        verifyToken(request)
         data = request.data
 
         if "orderCode" not in data or not isinstance(data["orderCode"], str):
