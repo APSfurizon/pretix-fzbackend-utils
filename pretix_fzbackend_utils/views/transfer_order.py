@@ -33,8 +33,8 @@ from pretix_fzbackend_utils.payment import (
 from pretix_fzbackend_utils.utils import (
     STATUS_CODE_PAYMENT_INVALID,
     STATUS_CODE_REFUND_INVALID,
+    verifyToken,
 )
-from pretix_fzbackend_utils.utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,8 @@ class ApiTransferOrder(APIView, View):
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Payment {payment.full_id}: invalid state {payment.state}"
                         )
-                        raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'}, code=STATUS_CODE_PAYMENT_INVALID)
+                        raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'},
+                                          code=STATUS_CODE_PAYMENT_INVALID)
                     payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
                     payment.save(update_fields=["state"])
                     order.log_action(
@@ -158,7 +159,8 @@ class ApiTransferOrder(APIView, View):
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Refund {refund.full_id}: invalid state {refund.state}"
                         )
-                        raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
+                        raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'},
+                                          code=STATUS_CODE_REFUND_INVALID)
                     totalPaid -= refund.amount
 
                 orderContext = {"order": order, **CONTEXT}

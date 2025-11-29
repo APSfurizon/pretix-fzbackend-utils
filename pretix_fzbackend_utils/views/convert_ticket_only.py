@@ -13,9 +13,10 @@ from pretix.base.signals import order_modified
 from pretix.helpers import OF_SELF
 from rest_framework import status
 from rest_framework.views import APIView
-from ..utils import verifyToken
 
 from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChangeManager
+
+from ..utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             tempSerializer.is_valid(raise_exception=False)
             finalData = {k: v for k, v in rootPositionSerializer.data.items() if k not in tempSerializer.errors and v is not None}
             if 'attendee_name' in finalData and 'attendee_name_parts' in finalData:
-                if len(finalData['attendee_name_parts']) > 1: # We have a _scheme element
+                if len(finalData['attendee_name_parts']) > 1:  # We have a _scheme element
                     del finalData['attendee_name']
                 else:
                     del finalData['attendee_name_parts']

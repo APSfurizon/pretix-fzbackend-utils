@@ -33,11 +33,11 @@ from pretix_fzbackend_utils.payment import (
     FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
 )
 from pretix_fzbackend_utils.utils import (
-    STATUS_CODE_POSITION_CANCELED,
     STATUS_CODE_PAYMENT_INVALID,
+    STATUS_CODE_POSITION_CANCELED,
     STATUS_CODE_REFUND_INVALID,
+    verifyToken,
 )
-from pretix_fzbackend_utils.utils import verifyToken
 
 logger = logging.getLogger(__name__)
 

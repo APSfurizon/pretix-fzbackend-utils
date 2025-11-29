@@ -14,6 +14,7 @@ from pretix.base.models import Event, OrderPosition
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
 from rest_framework import status
 from rest_framework.views import APIView
+
 from .utils import verifyToken
 
 logger = logging.getLogger(__name__)
