@@ -30,7 +30,11 @@ from pretix_fzbackend_utils.payment import (
     FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
     FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
 )
-from ..utils import verifyToken
+from pretix_fzbackend_utils.utils import (
+    STATUS_CODE_PAYMENT_INVALID,
+    STATUS_CODE_REFUND_INVALID,
+)
+from pretix_fzbackend_utils.utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +99,7 @@ class ApiTransferOrder(APIView, View):
                     )
                 )
                 if answer.question.type != Question.TYPE_NUMBER:
-                    raise FzException("", extraData={"error": f'Question {questionId} is not of type number'})
+                    raise FzException("", extraData={"error": f'Question {questionId} is not of type number'}, code=status.HTTP_400_BAD_REQUEST)
                 # Same as AnswerSerializer for numeric fields
                 answer.answer = serializers.DecimalField(max_digits=50, decimal_places=1).to_internal_value(newUserId)
                 answer.save(update_fields=["answer"])
@@ -131,7 +135,7 @@ class ApiTransferOrder(APIView, View):
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Payment {payment.full_id}: invalid state {payment.state}"
                         )
-                        raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'})
+                        raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'}, code=STATUS_CODE_PAYMENT_INVALID)
                     payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
                     payment.save(update_fields=["state"])
                     order.log_action(
@@ -154,7 +158,7 @@ class ApiTransferOrder(APIView, View):
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Refund {refund.full_id}: invalid state {refund.state}"
                         )
-                        raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'})
+                        raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
                     totalPaid -= refund.amount
 
                 orderContext = {"order": order, **CONTEXT}
@@ -249,7 +253,8 @@ class ApiTransferOrder(APIView, View):
                 # tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})
                 # order_modified.send(sender=request.event, order=order)
         except FzException as fe:
-            return JsonResponse(fe.extraData, status=status.HTTP_412_PRECONDITION_FAILED)
+            status_code = fe.code if fe.code is not None else status.HTTP_400_BAD_REQUEST
+            return JsonResponse(fe.extraData, status=status_code)
 
         logger.info(
             f"ApiTransferOrder [{orderCode}]: Success"

@@ -32,7 +32,12 @@ from pretix_fzbackend_utils.payment import (
     FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
     FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
 )
-from ..utils import verifyToken
+from pretix_fzbackend_utils.utils import (
+    STATUS_CODE_POSITION_CANCELED,
+    STATUS_CODE_PAYMENT_INVALID,
+    STATUS_CODE_REFUND_INVALID,
+)
+from pretix_fzbackend_utils.utils import verifyToken
 
 logger = logging.getLogger(__name__)
 
@@ -112,17 +117,17 @@ class SideInstance:
             logger.error(
                 f"ApiExchangeRooms [{self.order.code}]: Room position {self.room.pos.pk} is canceled"
             )
-            raise FzException("", extraData={"error": f'Room position {self.room.pos.pk} is canceled'})
+            raise FzException("", extraData={"error": f'Room position {self.room.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
         if self.early and self.early.pos.canceled:
             logger.error(
                 f"ApiExchangeRooms [{self.order.code}]: Early position {self.early.pos.pk} is canceled"
             )
-            raise FzException("", extraData={"error": f'Early position {self.early.pos.pk} is canceled'})
+            raise FzException("", extraData={"error": f'Early position {self.early.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
         if self.late and self.late.pos.canceled:
             logger.error(
                 f"ApiExchangeRooms [{self.order.code}]: Late position {self.late.pos.pk} is canceled"
             )
-            raise FzException("", extraData={"error": f'Late position {self.late.pos.pk} is canceled'})
+            raise FzException("", extraData={"error": f'Late position {self.late.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
 
     def verifyPaymentsRefundsStatus(self):
         # Already ordered in the Meta class of OrderPayment/Refund. Order is important for deadlock prevention
@@ -136,7 +141,7 @@ class SideInstance:
                 logger.error(
                     f"ApiExchangeRooms [{self.order.code}]: Payment {payment.full_id}: invalid state {payment.state}"
                 )
-                raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'})
+                raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'}, code=STATUS_CODE_PAYMENT_INVALID)
         refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=self.order.pk, state__in=[
             OrderRefund.REFUND_STATE_CREATED,
             OrderRefund.REFUND_STATE_TRANSIT,
@@ -148,7 +153,7 @@ class SideInstance:
                 logger.error(
                     f"ApiExchangeRooms [{self.order.code}]: Refund {refund.full_id}: invalid state {refund.state}"
                 )
-                raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'})
+                raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
@@ -260,7 +265,8 @@ class ApiExchangeRooms(APIView, View):
                 ordB.ocm.commit(check_quotas=False)
 
         except FzException as fe:
-            return JsonResponse(fe.extraData, status=status.HTTP_412_PRECONDITION_FAILED)
+            status_code = fe.code if fe.code is not None else status.HTTP_400_BAD_REQUEST
+            return JsonResponse(fe.extraData, status=status_code)
 
         logger.info(
             f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Success"
