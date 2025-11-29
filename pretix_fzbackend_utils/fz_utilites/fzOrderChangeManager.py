@@ -73,7 +73,7 @@ class FzOrderChangeManager(OrderChangeManager):
         if self.order.event.settings.invoice_include_free or price.gross != Decimal('0.00'):
             self._invoice_dirty = True
 
-        self._totaldiff += price.gross
+        self._totaldiff_guesstimate += price.gross
         self._quotadiff.update(new_quotas)
         if seat:
             self._seatdiff.update([seat])
