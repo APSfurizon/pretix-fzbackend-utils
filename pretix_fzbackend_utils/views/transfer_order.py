@@ -128,25 +128,27 @@ class ApiTransferOrder(APIView, View):
                 payments: List[OrderPayment] = OrderPayment.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
                     OrderPayment.PAYMENT_STATE_CONFIRMED,
                     OrderPayment.PAYMENT_STATE_CREATED,
-                    OrderPayment.PAYMENT_STATE_PENDING
+                    OrderPayment.PAYMENT_STATE_PENDING,
+                    OrderPayment.PAYMENT_STATE_REFUNDED
                 ])
                 for payment in payments:
-                    if payment.state != OrderPayment.PAYMENT_STATE_CONFIRMED:
+                    if payment.state in [OrderPayment.PAYMENT_STATE_PENDING, OrderPayment.PAYMENT_STATE_CREATED]:
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Payment {payment.full_id}: invalid state {payment.state}"
                         )
                         raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'},
                                           code=STATUS_CODE_PAYMENT_INVALID)
-                    payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
-                    payment.save(update_fields=["state"])
-                    order.log_action(
-                        'pretix.event.order.payment.refunded', {
-                            'local_id': payment.local_id,
-                            'provider': payment.provider,
-                        },
-                        user=request.user if request.user.is_authenticated else None,
-                        auth=request.auth
-                    )
+                    if payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
+                        payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
+                        payment.save(update_fields=["state"])
+                        order.log_action(
+                            'pretix.event.order.payment.refunded', {
+                                'local_id': payment.local_id,
+                                'provider': payment.provider,
+                            },
+                            user=request.user if request.user.is_authenticated else None,
+                            auth=request.auth
+                        )
                     totalPaid += payment.amount
                 refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
                     OrderRefund.REFUND_STATE_CREATED,
