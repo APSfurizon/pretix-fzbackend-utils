@@ -2,6 +2,7 @@ from typing import List
 
 import logging
 from django.db import transaction
+from django.db.models import Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -75,8 +76,8 @@ class Element:
     # Price ALWAYS includes taxes
     paid: int
     item: Item
+    price: int
     itemVar: ItemVariation
-    itemPrice: int
 
     def __init__(self, positionId, order):
         self.pos = get_object_or_404(
@@ -87,6 +88,8 @@ class Element:
         self.item = self.pos.item
         self.itemVar = self.pos.variation
         self.price = self.itemVar.price if self.itemVar else self.item.default_price
+        # Remove the bundle price
+        self.price -= self.item.bundles.aggregate(Sum('designated_price'))['designated_price__sum'] or 0
 
 
 class SideInstance:
@@ -132,28 +135,23 @@ class SideInstance:
     def verifyPaymentsRefundsStatus(self):
         # Already ordered in the Meta class of OrderPayment/Refund. Order is important for deadlock prevention
         payments: List[OrderPayment] = OrderPayment.objects.select_for_update(of=OF_SELF).filter(order__pk=self.order.pk, state__in=[
-            OrderPayment.PAYMENT_STATE_CONFIRMED,
             OrderPayment.PAYMENT_STATE_CREATED,
             OrderPayment.PAYMENT_STATE_PENDING
         ])
         for payment in payments:
-            if payment.state != OrderPayment.PAYMENT_STATE_CONFIRMED:
-                logger.error(
-                    f"ApiExchangeRooms [{self.order.code}]: Payment {payment.full_id}: invalid state {payment.state}"
-                )
-                raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'}, code=STATUS_CODE_PAYMENT_INVALID)
+            logger.error(
+                f"ApiExchangeRooms [{self.order.code}]: Payment {payment.full_id}: invalid state {payment.state}"
+            )
+            raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'}, code=STATUS_CODE_PAYMENT_INVALID)
         refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=self.order.pk, state__in=[
             OrderRefund.REFUND_STATE_CREATED,
-            OrderRefund.REFUND_STATE_TRANSIT,
-            OrderRefund.REFUND_STATE_DONE,
-            OrderRefund.REFUND_STATE_EXTERNAL
+            OrderRefund.REFUND_STATE_TRANSIT
         ])
         for refund in refunds:
-            if refund.state in [OrderRefund.REFUND_STATE_CREATED, OrderRefund.REFUND_STATE_TRANSIT]:
-                logger.error(
-                    f"ApiExchangeRooms [{self.order.code}]: Refund {refund.full_id}: invalid state {refund.state}"
-                )
-                raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
+            logger.error(
+                f"ApiExchangeRooms [{self.order.code}]: Refund {refund.full_id}: invalid state {refund.state}"
+            )
+            raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
