@@ -157,7 +157,7 @@ class ApiTransferOrder(APIView, View):
                         f"ApiTransferOrder [{orderCode}]: Refund {refund.full_id}: invalid state {refund.state}"
                     )
                     raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'},
-                                        code=STATUS_CODE_REFUND_INVALID)
+                                      code=STATUS_CODE_REFUND_INVALID)
 
                 orderContext = {"order": order, **CONTEXT}
 
