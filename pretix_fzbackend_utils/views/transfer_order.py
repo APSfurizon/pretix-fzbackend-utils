@@ -128,42 +128,36 @@ class ApiTransferOrder(APIView, View):
                 payments: List[OrderPayment] = OrderPayment.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
                     OrderPayment.PAYMENT_STATE_CONFIRMED,
                     OrderPayment.PAYMENT_STATE_CREATED,
-                    OrderPayment.PAYMENT_STATE_PENDING,
-                    OrderPayment.PAYMENT_STATE_REFUNDED
+                    OrderPayment.PAYMENT_STATE_PENDING
                 ])
                 for payment in payments:
-                    if payment.state in [OrderPayment.PAYMENT_STATE_PENDING, OrderPayment.PAYMENT_STATE_CREATED]:
+                    if payment.state != OrderPayment.PAYMENT_STATE_CONFIRMED:
                         logger.error(
                             f"ApiTransferOrder [{orderCode}]: Payment {payment.full_id}: invalid state {payment.state}"
                         )
                         raise FzException("", extraData={"error": f'Payment {payment.full_id} is in invalid state {payment.state}'},
                                           code=STATUS_CODE_PAYMENT_INVALID)
-                    if payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
-                        payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
-                        payment.save(update_fields=["state"])
-                        order.log_action(
-                            'pretix.event.order.payment.refunded', {
-                                'local_id': payment.local_id,
-                                'provider': payment.provider,
-                            },
-                            user=request.user if request.user.is_authenticated else None,
-                            auth=request.auth
-                        )
+                    payment.state = OrderPayment.PAYMENT_STATE_REFUNDED
+                    payment.save(update_fields=["state"])
+                    order.log_action(
+                        'pretix.event.order.payment.refunded', {
+                            'local_id': payment.local_id,
+                            'provider': payment.provider,
+                        },
+                        user=request.user if request.user.is_authenticated else None,
+                        auth=request.auth
+                    )
                     totalPaid += payment.amount
                 refunds: List[OrderRefund] = OrderRefund.objects.select_for_update(of=OF_SELF).filter(order__pk=order.pk, state__in=[
                     OrderRefund.REFUND_STATE_CREATED,
-                    OrderRefund.REFUND_STATE_TRANSIT,
-                    OrderRefund.REFUND_STATE_DONE,
-                    OrderRefund.REFUND_STATE_EXTERNAL
+                    OrderRefund.REFUND_STATE_TRANSIT
                 ])
                 for refund in refunds:
-                    if refund.state in [OrderRefund.REFUND_STATE_CREATED, OrderRefund.REFUND_STATE_TRANSIT]:
-                        logger.error(
-                            f"ApiTransferOrder [{orderCode}]: Refund {refund.full_id}: invalid state {refund.state}"
-                        )
-                        raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'},
-                                          code=STATUS_CODE_REFUND_INVALID)
-                    totalPaid -= refund.amount
+                    logger.error(
+                        f"ApiTransferOrder [{orderCode}]: Refund {refund.full_id}: invalid state {refund.state}"
+                    )
+                    raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'},
+                                        code=STATUS_CODE_REFUND_INVALID)
 
                 orderContext = {"order": order, **CONTEXT}
 
