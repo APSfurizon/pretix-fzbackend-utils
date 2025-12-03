@@ -160,7 +160,7 @@ class SideInstance:
             )
             raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
 
-
+# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/exchange-rooms/ -H "Authorization: Token AAAAA" -H "Content-Type: application/json" -X Post --data '{"manualPaymentComment": "paystocazzo", "manualRefundComment": "paystamerda","sourceOrderCode": "T09T9", "sourceRootPositionId": 117, "destOrderCode": "W09SA", "destRootPositionId": 110, "exchanges": [{"sourcePositionId": 117, "destPositionId": 110}, {"sourcePositionId": 130, "destPositionId": 111}, {"sourcePositionId": 131, "destPositionId": null}, {"sourcePositionId": null, "destPositionId": 138}]}'
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiExchangeRooms(APIView, View):
@@ -193,12 +193,12 @@ class ApiExchangeRooms(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "exchanges"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        for exchange in data["exchanges"]:
-            if "sourcePositionId" in exchange and exchange["sourcePositionId"] is not None and not isinstance(exchange["sourcePositionId"], int):
+        for exchangeReq in data["exchanges"]:
+            if "sourcePositionId" in exchangeReq and exchangeReq["sourcePositionId"] is not None and not isinstance(exchangeReq["sourcePositionId"], int):
                 return JsonResponse(
                     {"error": 'Invalid parameter "sourcePositionId"'}, status=status.HTTP_400_BAD_REQUEST
                 )
-            if "destPositionId" in exchange and exchange["destPositionId"] is not None and not isinstance(exchange["destPositionId"], int):
+            if "destPositionId" in exchangeReq and exchangeReq["destPositionId"] is not None and not isinstance(exchangeReq["destPositionId"], int):
                 return JsonResponse(
                     {"error": 'Invalid parameter "destPositionId"'}, status=status.HTTP_400_BAD_REQUEST
                 )
