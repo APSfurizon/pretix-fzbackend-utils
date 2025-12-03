@@ -57,18 +57,25 @@ class Balance:
 
 class SideData:
     orderCode: str
-    roomPosId: int
-    earlyPosId: int
-    latePosId: int
+    rootPositionId: int
+    positions: List[int]
 
     def __init__(self, data, side: str):
         self.orderCode = data[f"{side}OrderCode"]
-        self.roomPosId = data[f"{side}RoomPositionId"]
-        self.earlyPosId = data.get(f"{side}EarlyPositionId", None)
-        self.latePosId = data.get(f"{side}LatePositionId", None)
+        self.rootPositionId = data[f"{side}RootPositionId"]
+        self.positions = []
+        for exchange in data["exchanges"]:
+            posId = None
+            if f"{side}PositionId" in exchange and exchange[f"{side}PositionId"] is not None:
+                posId = exchange[f"{side}PositionId"]
+            # Append anyway to not mess with indexes
+            self.positions.append(posId)
+
+    def position(self, idx: int) -> int:
+        return self.positions[idx]
 
     def __str__(self):
-        return f"{self.orderCode}{{roomPosId={self.roomPosId} earlyPosId={self.earlyPosId} latePosId={self.latePosId}}}"
+        return f"{self.orderCode}{{{', '.join([str(p) if p is not None else 'None' for p in self.positions])}}}"
 
 
 class Element:
@@ -95,12 +102,11 @@ class Element:
 class SideInstance:
     order: Order
     ocm: FzOrderChangeManager
-    room: Element
-    early: Element
-    late: Element
-
+    rootPosition: OrderPosition
+    instances: List[Element]
+    
     # We assume we already are in a transaction.atomic()
-    def __init__(self, data, request):
+    def __init__(self, data: SideData, request):
         self.order = get_object_or_404(
             Order.objects.select_for_update(of=OF_SELF).filter(event=request.event, code=data.orderCode, event__organizer=request.organizer)
         )
@@ -111,26 +117,27 @@ class SideInstance:
             notify=False,
             reissue_invoice=False,
         )
-        self.room = Element(data.roomPosId, self.order)
-        self.early = Element(data.earlyPosId, self.order) if data.earlyPosId else None
-        self.late = Element(data.latePosId, self.order) if data.latePosId else None
+        self.instances = []
+        for posId in data.positions:
+            if posId is not None:
+                e = Element(posId, self.order)
+                self.instances.append(e)
+                if posId == data.rootPositionId:
+                    self.rootPosition = e.pos
+            else:
+                # Store also None for easier indexing
+                self.instances.append(None)
+
+    def instance(self, idx: int) -> Element:
+        return self.instances[idx]
 
     def verifyCancelation(self):
-        if self.room.pos.canceled:
-            logger.error(
-                f"ApiExchangeRooms [{self.order.code}]: Room position {self.room.pos.pk} is canceled"
-            )
-            raise FzException("", extraData={"error": f'Room position {self.room.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
-        if self.early and self.early.pos.canceled:
-            logger.error(
-                f"ApiExchangeRooms [{self.order.code}]: Early position {self.early.pos.pk} is canceled"
-            )
-            raise FzException("", extraData={"error": f'Early position {self.early.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
-        if self.late and self.late.pos.canceled:
-            logger.error(
-                f"ApiExchangeRooms [{self.order.code}]: Late position {self.late.pos.pk} is canceled"
-            )
-            raise FzException("", extraData={"error": f'Late position {self.late.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
+        for element in self.instances:
+            if element is not None and element.pos.canceled:
+                logger.error(
+                    f"ApiExchangeRooms [{self.order.code}]: Position {element.pos.pk} is canceled"
+                )
+                raise FzException("", extraData={"error": f'Position {element.pos.pk} is canceled'}, code=STATUS_CODE_POSITION_CANCELED)
 
     def verifyPaymentsRefundsStatus(self):
         # Already ordered in the Meta class of OrderPayment/Refund. Order is important for deadlock prevention
@@ -168,35 +175,33 @@ class ApiExchangeRooms(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "sourceOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "sourceRoomPositionId" not in data or not isinstance(data["sourceRoomPositionId"], int):
+        if "sourceRootPositionId" not in data or not isinstance(data["sourceRootPositionId"], int):
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "sourceRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "sourceEarlyPositionId" in data and data["sourceEarlyPositionId"] and not isinstance(data["sourceEarlyPositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "sourceEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if "sourceLatePositionId" in data and data["sourceLatePositionId"] and not isinstance(data["sourceLatePositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "sourceLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Missing or invalid parameter "sourceRootPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
         # Dest info
         if "destOrderCode" not in data or not isinstance(data["destOrderCode"], str):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "destOrderCode"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "destRoomPositionId" not in data or not isinstance(data["destRoomPositionId"], int):
+        if "destRootPositionId" not in data or not isinstance(data["destRootPositionId"], int):
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "destRoomPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Missing or invalid parameter "destRootPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "destEarlyPositionId" in data and data["destEarlyPositionId"] and not isinstance(data["destEarlyPositionId"], int):
+        # Exchange data
+        if "exchanges" not in data or not isinstance(data["exchanges"], list):
             return JsonResponse(
-                {"error": 'Invalid parameter "destEarlyPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Missing or invalid parameter "exchanges"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "destLatePositionId" in data and data["destLatePositionId"] and not isinstance(data["destLatePositionId"], int):
-            return JsonResponse(
-                {"error": 'Invalid parameter "destLatePositionId"'}, status=status.HTTP_400_BAD_REQUEST
-            )
+        for exchange in data["exchanges"]:
+            if "sourcePositionId" in exchange and exchange["sourcePositionId"] is not None and not isinstance(exchange["sourcePositionId"], int):
+                return JsonResponse(
+                    {"error": 'Invalid parameter "sourcePositionId"'}, status=status.HTTP_400_BAD_REQUEST
+                )
+            if "destPositionId" in exchange and exchange["destPositionId"] is not None and not isinstance(exchange["destPositionId"], int):
+                return JsonResponse(
+                    {"error": 'Invalid parameter "destPositionId"'}, status=status.HTTP_400_BAD_REQUEST
+                )
         # Extra
         if "manualPaymentComment" in data and data["manualPaymentComment"] and not isinstance(data["manualPaymentComment"], str):
             return JsonResponse(
@@ -215,15 +220,6 @@ class ApiExchangeRooms(APIView, View):
         logger.info(
             f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Got from req  src={src}  dst={dst}"
         )
-
-        if src.roomPosId is None:
-            return JsonResponse(
-                {"error": 'Source should have a valid room position!'}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if dst.roomPosId is None:
-            return JsonResponse(
-                {"error": 'Dest should have a valid room position!'}, status=status.HTTP_400_BAD_REQUEST
-            )
 
         # Create an order over the orders to acquire the locks. In this way we prevent deadlocks
         # Ugly ass btw
@@ -245,12 +241,16 @@ class ApiExchangeRooms(APIView, View):
                 ordB.verifyPaymentsRefundsStatus()
                 logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Loaded instances and verified payments/refunds")
 
-                rootPosA = ordA.room.pos
-                rootPosB = ordB.room.pos
+                rootPosA: OrderPosition = ordA.rootPosition
+                rootPosB: OrderPosition = ordB.rootPosition
 
-                balance += exchange(ordA.room, ordB.room, None, None, ordA.ocm, ordB.ocm)
-                balance += exchange(ordA.early, ordB.early, rootPosA, rootPosB, ordA.ocm, ordB.ocm)
-                balance += exchange(ordA.late, ordB.late, rootPosA, rootPosB, ordA.ocm, ordB.ocm)
+                for idx in range(len(data["exchanges"])):
+                    posA: Element = ordA.instance(idx)
+                    posB: Element = ordB.instance(idx)
+                    logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Exchanging pair idx={idx} "
+                                 f"posA={posA.pos.pk if posA is not None else 'None'} "
+                                 f"posB={posB.pos.pk if posB is not None else 'None'}")
+                    balance += exchange(posA, posB, rootPosA, rootPosB, ordA.ocm, ordB.ocm)
                 logger.debug(f"ApiExchangeRooms [{src.orderCode}-{dst.orderCode}]: Exchanges done")
 
                 fixPaymentStatus(balance.balanceA, ordA.order, refundComment, paymentComment, request, {"order": ordA.order, "event": request.event})
@@ -386,6 +386,11 @@ def transfer(src: Element, dest: Element, addonTo: OrderPosition, ocmDest: FzOrd
 def exchange(a: Element, b: Element,
              rootPositionA: OrderPosition, rootPositionB: OrderPosition,
              ocmA: FzOrderChangeManager, ocmB: FzOrderChangeManager) -> Balance:
+    # Cannot be an addon of itself
+    if a is not None and a.pos.pk == rootPositionA.pk:
+        rootPositionA = None
+    if b is not None and b.pos.pk == rootPositionB.pk:
+        rootPositionB = None
     balB = transfer(a, b, rootPositionB, ocmB)
     balA = transfer(b, a, rootPositionA, ocmA)
     return Balance(balA, balB)
