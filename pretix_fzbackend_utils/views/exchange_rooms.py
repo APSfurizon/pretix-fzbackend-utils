@@ -104,7 +104,7 @@ class SideInstance:
     ocm: FzOrderChangeManager
     rootPosition: OrderPosition
     instances: List[Element]
-    
+
     # We assume we already are in a transaction.atomic()
     def __init__(self, data: SideData, request):
         self.order = get_object_or_404(
@@ -160,7 +160,7 @@ class SideInstance:
             )
             raise FzException("", extraData={"error": f'Refund {refund.full_id} is in invalid state {refund.state}'}, code=STATUS_CODE_REFUND_INVALID)
 
-# curl 127.0.0.1:8000/suca/testBackend/fzbackendutils/api/exchange-rooms/ -H "Authorization: Token AAAAA" -H "Content-Type: application/json" -X Post --data '{"manualPaymentComment": "paystocazzo", "manualRefundComment": "paystamerda","sourceOrderCode": "T09T9", "sourceRootPositionId": 117, "destOrderCode": "W09SA", "destRootPositionId": 110, "exchanges": [{"sourcePositionId": 117, "destPositionId": 110}, {"sourcePositionId": 130, "destPositionId": 111}, {"sourcePositionId": 131, "destPositionId": null}, {"sourcePositionId": null, "destPositionId": 138}]}'
+
 @method_decorator(xframe_options_exempt, "dispatch")
 @method_decorator(csrf_exempt, "dispatch")
 class ApiExchangeRooms(APIView, View):
