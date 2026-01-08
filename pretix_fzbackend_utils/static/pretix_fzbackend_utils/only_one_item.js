@@ -1,0 +1,1 @@
+$(".btn-checkbox").each(function() {this.addEventListener("change", function (e) {$(".availability-box input:checked").not(e.target).prop("checked", false).trigger("change");})});
