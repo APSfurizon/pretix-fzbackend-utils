@@ -9,25 +9,12 @@ from django.utils.translation import gettext_lazy as _
 from pretix.base.signals import register_global_settings, register_payment_providers
 from pretix.control.signals import nav_event_settings
 from pretix.helpers.http import redirect_to_url
-from pretix.presale.signals import process_request, global_html_footer
+from pretix.presale.signals import process_request
 from urllib.parse import urlencode
 
 from pretix_fzbackend_utils.payment import FzbackendManualPaymentProvider
 
 logger = logging.getLogger(__name__)
-
-# Hack to enforce just one item selection in the first page of pretix. Until I make a proper PR to pretix...
-HACK_SINGLE_ITEM_NO_SCRIPT = ""
-HACK_SINGLE_ITEM_SCRIPT = '<script type="text/javascript" src="/static/pretix_fzbackend_utils/only_one_item.js"></script>'
-@receiver(global_html_footer, dispatch_uid="fzbackendutils_global_html_footer")
-def global_html_footer_fzbackendutils(sender, request, **kwargs):
-    try:
-        r = resolve(request.path_info)
-    except Exception as e:
-        logger.error("global_html_footer Error while resolving path info:", e)
-        return
-    #logger.info(f"global_html_footer resolved url_name: {r.url_name}")
-    return HACK_SINGLE_ITEM_SCRIPT if (r.url_name == "event.index" or r.url_name == "event.redeem") else HACK_SINGLE_ITEM_NO_SCRIPT
 
 
 @receiver(process_request, dispatch_uid="fzbackendutils_process_request")
