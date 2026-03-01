@@ -91,7 +91,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
                 notify=False,
                 reissue_invoice=False,
             )
-            ocm.add_position_no_addon_validation(
+            newPositionHandler = ocm.add_position_no_addon_validation(
                 item=rootItem,
                 variation=rootItemVariation,
                 price=rootPosition.price,
@@ -114,9 +114,7 @@ class ApiConvertTicketOnlyOrder(APIView, View):
             )
             ocm.commit(check_quotas=False)
 
-            # Possible race condition, however Pretix does this inside their code as well
-            # https://github.com/pretix/pretix/issues/5548
-            newPosition: OrderPosition = order.positions.order_by('-positionid').first()
+            newPosition = newPositionHandler.position
             logger.debug(
                 f"ApiConvertTicketOnlyOrder [{orderCode}]: Newly added position {newPosition.pk}"
             )
