@@ -27,7 +27,7 @@ class FzOrderChangeManager(OrderChangeManager):
     # Like add_position, but without addon hierarchy validation
     def add_position_no_addon_validation(self, item: Item, variation: ItemVariation, price: Decimal, addon_to: OrderPosition = None,
                                          subevent: SubEvent = None, seat: Seat = None, membership: Membership = None,
-                                         valid_from: datetime = None, valid_until: datetime = None, is_bundled: bool = False):
+                                         valid_from: datetime = None, valid_until: datetime = None, is_bundled: bool = False) -> OrderChangeManager.AddPositionResult:
         if isinstance(seat, str):
             if not seat:
                 seat = None
@@ -77,6 +77,7 @@ class FzOrderChangeManager(OrderChangeManager):
         self._quotadiff.update(new_quotas)
         if seat:
             self._seatdiff.update([seat])
+        result = self.AddPositionResult()
         self._operations.append(
             self.AddOperation(
                 item,
@@ -88,6 +89,8 @@ class FzOrderChangeManager(OrderChangeManager):
                 membership,
                 valid_from,
                 valid_until,
-                is_bundled
+                is_bundled,
+                result
             )
         )
+        return result

@@ -345,8 +345,7 @@ def fixPaymentStatus(balance: int, order: Order, refundComment: str, paymentComm
 # We return >0 if dest should pay more, <0 if dest should instead get a refund
 def transfer(src: Element, dest: Element, addonTo: OrderPosition, ocmDest: FzOrderChangeManager) -> int:
     # This DOES NOT copy or transfer extra position information!!
-    # With the current OCM implementation we have no access to the exact newly created position, making us impossible
-    # the job of updating with the extra information
+    # We now can track the newly created position, but we still need extra work to do this
     if src is None:
         if dest is None:
             return 0
