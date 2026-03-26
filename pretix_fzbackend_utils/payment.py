@@ -7,6 +7,7 @@ from pretix.base.models import Order, OrderPayment
 from pretix.base.payment import ManualPayment
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER = "fzbackend-manual"
 FZ_MANUAL_PAYMENT_PROVIDER_ISSUER = "fz-backend"

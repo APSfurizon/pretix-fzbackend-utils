@@ -37,6 +37,7 @@ from pretix_fzbackend_utils.utils import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
@@ -243,9 +244,9 @@ class ApiTransferOrder(APIView, View):
                     notify=False,
                     reissue_invoice=False,
                 )
-                ocm.nopOperation()
+                ocm.recomputeOperation()
                 ocm.commit()
-                logger.debug(f"ApiTransferOrder [{orderCode}]: OCM nop")
+                logger.debug(f"ApiTransferOrder [{orderCode}]: OCM recompute")
 
                 # Both already done inside ocm
                 # tickets.invalidate_cache.apply_async(kwargs={'event': request.event.pk, 'order': order.pk})

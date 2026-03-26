@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-29 15:26+0100\n"
+"POT-Creation-Date: 2026-03-26 14:10+0100\n"
 "PO-Revision-Date: \n"
 "Last-Translator: APSfurizon\n"
 "Language-Team: \n"
@@ -33,23 +33,23 @@ msgid ""
 "code> of the backend to link this order to the logged in user."
 msgstr ""
 
-#: pretix_fzbackend_utils/payment.py:17
+#: pretix_fzbackend_utils/payment.py:18
 msgid "FzBackendUtils Manual payment"
 msgstr ""
 
-#: pretix_fzbackend_utils/payment.py:18
+#: pretix_fzbackend_utils/payment.py:19
 msgid "FzBackendUtils - Manual payment"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:66
+#: pretix_fzbackend_utils/signals.py:67
 msgid "Fz-backend settings"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:86
+#: pretix_fzbackend_utils/signals.py:87
 msgid "[FZBACKEND] Internal endpoint token"
 msgstr ""
 
-#: pretix_fzbackend_utils/signals.py:88
+#: pretix_fzbackend_utils/signals.py:89
 msgid ""
 "This plugin exposes some api for extra access to the fz-backend. This token "
 "needs to be specified in the <code>fz-backend-api</code> header to access "

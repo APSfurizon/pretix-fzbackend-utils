@@ -41,6 +41,7 @@ from pretix_fzbackend_utils.utils import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class Balance:

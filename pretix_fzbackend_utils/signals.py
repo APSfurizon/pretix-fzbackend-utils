@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from pretix_fzbackend_utils.payment import FzbackendManualPaymentProvider
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @receiver(process_request, dispatch_uid="fzbackendutils_process_request")

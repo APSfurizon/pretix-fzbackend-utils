@@ -19,6 +19,7 @@ from pretix_fzbackend_utils.fz_utilites.fzOrderChangeManager import FzOrderChang
 from ..utils import verifyToken
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @method_decorator(xframe_options_exempt, "dispatch")
