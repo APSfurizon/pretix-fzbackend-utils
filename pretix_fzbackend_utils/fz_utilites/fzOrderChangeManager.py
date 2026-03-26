@@ -9,11 +9,10 @@ from pretix.base.services.orders import OrderChangeManager, OrderError, error_me
 from pretix.base.services.pricing import get_price
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class FzOrderChangeManager(OrderChangeManager):
-    NopOperation = namedtuple('ItemOperation', ())
-
     fz_enable_locking = True
 
     # If fz_enable_locking is set to False, the caller takes responsability for calling `lock_objects([event])` once per transaction
@@ -21,8 +20,8 @@ class FzOrderChangeManager(OrderChangeManager):
         if self.fz_enable_locking:
             super()._create_locks()
 
-    def nopOperation(self):
-        self._operations.append(self.NopOperation())
+    def recomputeOperation(self):
+        self._operations.append(self.ForceRecomputeOperation())
 
     # Like add_position, but without addon hierarchy validation
     def add_position_no_addon_validation(self, item: Item, variation: ItemVariation, price: Decimal, addon_to: OrderPosition = None,
