@@ -26,8 +26,12 @@ class FzOrderChangeManager(OrderChangeManager):
     # Like add_position, but without addon hierarchy validation
     def add_position_no_addon_validation(self, item: Item, variation: ItemVariation, price: Decimal, addon_to: OrderPosition = None,
                                          subevent: SubEvent = None, seat: Seat = None, membership: Membership = None,
-                                         valid_from: datetime = None, valid_until: datetime = None, is_bundled: bool = False) -> OrderChangeManager.AddPositionResult:
+                                         valid_from: datetime = None, valid_until: datetime = None, count: int = 1, is_bundled: bool = False) -> OrderChangeManager.AddPositionResult:
+        if count < 1:
+            raise ValueError("Count must be positive")
         if isinstance(seat, str):
+            if count > 1:
+                raise ValueError("Cannot combine count > 1 with seat")
             if not seat:
                 seat = None
             else:
@@ -53,6 +57,14 @@ class FzOrderChangeManager(OrderChangeManager):
             raise OrderError(self.error_messages['product_invalid'])
         if item.variations.exists() and not variation:
             raise OrderError(self.error_messages['product_without_variation'])
+        #if not addon_to and item.category and item.category.is_addon:
+        #    raise OrderError(self.error_messages['addon_to_required'])
+        #if addon_to:
+        #    if not item.category or item.category_id not in addon_to.item.addons.values_list('addon_category', flat=True):
+        #        if addon_to.item.bundles.filter(bundled_item=item, bundled_variation=variation).exists():
+        #            is_bundled = True
+        #        else:
+        #            raise OrderError(self.error_messages['addon_invalid'])
         if self.order.event.has_subevents and not subevent:
             raise OrderError(self.error_messages['subevent_required'])
 
@@ -72,10 +84,11 @@ class FzOrderChangeManager(OrderChangeManager):
         if self.order.event.settings.invoice_include_free or price.gross != Decimal('0.00'):
             self._invoice_dirty = True
 
-        self._totaldiff_guesstimate += price.gross
-        self._quotadiff.update(new_quotas)
+        self._totaldiff_guesstimate += price.gross * count
+        self._quotadiff.update({q: count for q in new_quotas})
         if seat:
             self._seatdiff.update([seat])
+
         result = self.AddPositionResult()
         self._operations.append(
             self.AddOperation(
@@ -89,7 +102,8 @@ class FzOrderChangeManager(OrderChangeManager):
                 valid_from,
                 valid_until,
                 is_bundled,
-                result
+                result,
+                count
             )
         )
         return result
