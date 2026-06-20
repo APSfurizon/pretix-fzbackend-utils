@@ -68,6 +68,10 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "membershipCardItemId"'}, status=status.HTTP_400_BAD_REQUEST
             )
+        if "membershipCardNeededForNewUser" not in data or not isinstance(data["membershipCardNeededForNewUser"], bool):
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "membershipCardNeededForNewUser"'}, status=status.HTTP_400_BAD_REQUEST
+            )
         if "userIdQuestionId" not in data or not isinstance(data["userIdQuestionId"], int):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "userIdQuestionId"'}, status=status.HTTP_400_BAD_REQUEST
@@ -79,6 +83,40 @@ class ApiTransferOrder(APIView, View):
         if "newEmail" not in data or not isinstance(data["newEmail"], str):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "newEmail"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "ticketItemIds" not in data or not isinstance(data["ticketItemIds"], list) or len(data["ticketItemIds"]) == 0:
+            return JsonResponse(
+                {"error": 'Missing or invalid parameter "ticketItemIds"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        for ticket in data["ticketItemIds"]:
+            if not isinstance(ticket, int):
+                return JsonResponse(
+                    {"error": 'Invalid parameter ticket item id'}, status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        if "name" in data and data["name"] and not isinstance(data["name"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "name"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "street" in data and data["street"] and not isinstance(data["street"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "street"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "zipcode" in data and data["zipcode"] and not isinstance(data["zipcode"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "zipcode"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "city" in data and data["city"] and not isinstance(data["city"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "city"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "country" in data and data["country"] and not isinstance(data["country"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "country"'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if "state" in data and data["state"] and not isinstance(data["state"], str):
+            return JsonResponse(
+                {"error": 'Invalid parameter "state"'}, status=status.HTTP_400_BAD_REQUEST
             )
         if "cancelationComment" in data and data["cancelationComment"] and not isinstance(data["cancelationComment"], str):
             return JsonResponse(
@@ -95,17 +133,17 @@ class ApiTransferOrder(APIView, View):
 
         orderCode = data["orderCode"]
         membershipCardItemId = data["membershipCardItemId"]
-        membershipCardNeededForNewUser = True
+        membershipCardNeededForNewUser = data["membershipCardNeededForNewUser"]
         userIdQuestionId = data["userIdQuestionId"]
         newUserId = data["newUserId"]
         newEmail = data["newEmail"]
-        ticketItemIds = []
-        name = None
-        street = None
-        zipcode = None
-        city = None
-        country = None
-        state = None
+        ticketItemIds = data["ticketItemIds"]
+        name = data.get("name", None)
+        street = data.get("street", None)
+        zipcode = data.get("zipcode", None)
+        city = data.get("city", None)
+        country = data.get("country", None)
+        state = data.get("state", None)
         cancelationComment = data.get("cancelationComment", None)
         paymentComment = data.get("manualPaymentComment", None)
         refundComment = data.get("manualRefundComment", None)
@@ -143,21 +181,22 @@ class ApiTransferOrder(APIView, View):
                     newAnswers = []
                     answer: QuestionAnswer
                     for answer in answers:
+                        opts = answer.options.all()
                         newAnswer = {
                             "question": answer.question_id,
                             "answer": answer.answer,
-                            "options": [option.identifier for option in answer.options.all()] if answer.options else None
+                            "options": [option.identifier for option in opts] if (answer.options and len(opts) > 0) else []
                         }
                         if (answer.question_id == userIdQuestionId):
                             if answer.question.type != Question.TYPE_NUMBER:
                                 raise FzException("", extraData={"error": f'Question {userIdQuestionId} is not of type number'}, code=status.HTTP_400_BAD_REQUEST)
-                            newAnswer["answer"] = serializers.DecimalField(max_digits=50, decimal_places=1).to_internal_value(newUserId)
-                            newAnswer["options"] = None
+                            newAnswer["answer"] = str(serializers.DecimalField(max_digits=50, decimal_places=1).to_internal_value(newUserId))
+                            newAnswer["options"] = []
                         newAnswers.append(newAnswer)
                     
-                    
+                    addon = position.addon_to_id if position.addon_to else None                    
                     newPos = {
-                        "positionid": None, # Filled later
+                        "positionid": position.id, # Needs to be updated later
                         "item": position.item_id,
                         "variation": position.variation_id if position.variation else None,
                         "price": position.price,
@@ -176,28 +215,29 @@ class ApiTransferOrder(APIView, View):
                         "valid_from": position.valid_from,
                         "valid_until": position.valid_until,
                         "discount": position.discount,
-                        "answers": newAnswers
+                        "answers": newAnswers,
                     }
                     
-                    addon = position.addon_to_id if position.addon_to else None
                     if (addon is None):
                         basePositions.append(newPos)
                     else:
-                        l = positionIdToAddons[addon]
-                        if l is None:
+                        if addon not in positionIdToAddons:
                             l = []
                             positionIdToAddons[addon] = l
+                        else:
+                            l = positionIdToAddons[addon]
                         l.append(newPos)
                 #Adjust positionid and positions
                 posId = 1
                 newPositions = []
                 for pos in basePositions:
+                    orgPositionId = pos["positionid"]
                     pos["positionid"] = posId
                     basePosId = posId
                     posId += 1
                     newPositions.append(pos)
-                    if (posId in positionIdToAddons):
-                        for addonPos in positionIdToAddons[posId]:
+                    if (orgPositionId in positionIdToAddons):
+                        for addonPos in positionIdToAddons[orgPositionId]:
                             addonPos["addon_to"] = basePosId
                             addonPos["positionid"] = posId
                             posId += 1
@@ -424,7 +464,7 @@ class ApiTransferOrder(APIView, View):
                 
                 # Cancel order with paid fee
                 cancel_order(
-                    self.order.pk,
+                    sourceOrder.pk,
                     user=self.request.user,
                     email_comment=cancelationComment,
                     send_mail=False,
