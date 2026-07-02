@@ -64,10 +64,15 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "orderCode"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "membershipCardItemId" not in data or not isinstance(data["membershipCardItemId"], int):
+        if "membershipCardItemIds" not in data or not isinstance(data["membershipCardItemIds"], list) or len(data["membershipCardItemIds"]) == 0:
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "membershipCardItemId"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Missing or invalid parameter "membershipCardItemIds"'}, status=status.HTTP_400_BAD_REQUEST
             )
+        for itemId in data["membershipCardItemIds"]:
+            if not isinstance(itemId, int):
+                return JsonResponse(
+                    {"error": 'Invalid parameter membershipcard item id'}, status=status.HTTP_400_BAD_REQUEST
+                )
         if "membershipCardNeededForNewUser" not in data or not isinstance(data["membershipCardNeededForNewUser"], bool):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "membershipCardNeededForNewUser"'}, status=status.HTTP_400_BAD_REQUEST
@@ -118,9 +123,9 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Invalid parameter "state"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "cancelationComment" in data and data["cancelationComment"] and not isinstance(data["cancelationComment"], str):
+        if "cancellationComment" in data and data["cancellationComment"] and not isinstance(data["cancellationComment"], str):
             return JsonResponse(
-                {"error": 'Invalid parameter "cancelationComment"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Invalid parameter "cancellationComment"'}, status=status.HTTP_400_BAD_REQUEST
             )
         if "manualPaymentComment" in data and data["manualPaymentComment"] and not isinstance(data["manualPaymentComment"], str):
             return JsonResponse(
@@ -144,7 +149,7 @@ class ApiTransferOrder(APIView, View):
         city = data.get("city", None)
         country = data.get("country", None)
         state = data.get("state", None)
-        cancelationComment = data.get("cancelationComment", None)
+        cancellationComment = data.get("cancellationComment", None)
         paymentComment = data.get("manualPaymentComment", None)
         refundComment = data.get("manualRefundComment", None)
 
@@ -466,7 +471,7 @@ class ApiTransferOrder(APIView, View):
                 cancel_order(
                     sourceOrder.pk,
                     user=self.request.user,
-                    email_comment=cancelationComment,
+                    email_comment=cancellationComment,
                     send_mail=False,
                     cancel_invoice=False,
                     cancellation_fee=sourceOrder.total
