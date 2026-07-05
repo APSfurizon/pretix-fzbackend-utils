@@ -137,7 +137,7 @@ class ApiTransferOrder(APIView, View):
             )
 
         orderCode = data["orderCode"]
-        membershipCardItemId = data["membershipCardItemId"]
+        membershipCardItemIds = data["membershipCardItemIds"]
         membershipCardNeededForNewUser = data["membershipCardNeededForNewUser"]
         userIdQuestionId = data["userIdQuestionId"]
         newUserId = data["newUserId"]
@@ -162,13 +162,15 @@ class ApiTransferOrder(APIView, View):
         try:
             with transaction.atomic():
                 membershipCardItem = get_object_or_404(
-                    Item.objects.filter(event=request.event, id=membershipCardItemId)
+                    Item.objects.filter(event=request.event, id__in=membershipCardItemIds)
                 )
                 sourceOrder: Order = get_object_or_404(
                     Order.objects.select_for_update(of=OF_SELF).filter(event=request.event, code=orderCode, event__organizer=request.organizer)
                 )
                 sourcePositions = sourceOrder.positions.all()
                 sourceFees = sourceOrder.fees.all()
+                
+                membershipCardTotalAmount = 0
                 
                 # FIRST CREATES THE NEW ORDER FOR THE DEST USER
                 
@@ -179,7 +181,13 @@ class ApiTransferOrder(APIView, View):
                 positionIdToAddons = {}
                 position: OrderPosition
                 for position in sourcePositions:
-                    if (position.item_id == membershipCardItemId):
+                    if position.canceled:
+                        #Don't copy canceled positions
+                        continue
+                    
+                    if (position.item_id in membershipCardItemIds):
+                        # We save how much the membership cards
+                        membershipCardTotalAmount += position.price
                         continue # Skip copying membership cards
                     
                     answers = position.answers.all()
@@ -280,7 +288,8 @@ class ApiTransferOrder(APIView, View):
                     "payment_info": {
                         "issued_by": FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
                         "comment": paymentComment
-                    }
+                    },
+                    "testmode": sourceOrder.testmode,
                 }
                 # Actually create the order. Code taken from the create order api endpoint
                 createOrderSerializer = OrderCreateSerializer(data = orderData, context=CONTEXT)
@@ -380,7 +389,7 @@ class ApiTransferOrder(APIView, View):
                 logger.debug(f"ApiTransferOrder [{orderCode}]: Payments marked as refunded")
 
                 # It's enough to mark payment as refunded. However this may seem an inconsistent state (order paid with no valid payments),
-                # so we create a refund and a payment objects as well
+                # so we create a refund object as well
                 amount = serializers.DecimalField(max_digits=13, decimal_places=2).to_internal_value(str(totalPaid))
                 dateNow = serializers.DateTimeField().to_internal_value(now())
 
@@ -417,39 +426,42 @@ class ApiTransferOrder(APIView, View):
                 )
                 logger.debug(f"ApiTransferOrder [{orderCode}]: Refund created")
 
-                # Create the new payment to compensate of the refunded ones
-                paymentData = {
-                    "state": OrderPayment.PAYMENT_STATE_PENDING,
-                    "amount": amount,
-                    "payment_date": dateNow,
-                    "sendEmail": False,
-                    "provider": FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
-                    "info": {
-                        "issued_by": FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
-                        "comment": paymentComment
+                # If the sourceOrder had some membership cards, we create a new fake payment.
+                # This is going to be our canceletion fee
+                if membershipCardTotalAmount > 0:
+                    logger.debug(f"ApiTransferOrder [{orderCode}]: Creating payment for membership card amount {membershipCardTotalAmount}")
+                    paymentData = {
+                        "state": OrderPayment.PAYMENT_STATE_PENDING,
+                        "amount": membershipCardTotalAmount,
+                        "payment_date": dateNow,
+                        "sendEmail": False,
+                        "provider": FZ_MANUAL_PAYMENT_PROVIDER_IDENTIFIER,
+                        "info": {
+                            "issued_by": FZ_MANUAL_PAYMENT_PROVIDER_ISSUER,
+                            "comment": paymentComment
+                        }
                     }
-                }
-                paymentSerializer = OrderPaymentCreateSerializer(data=paymentData, context=orderContext)
-                paymentSerializer.is_valid(raise_exception=True)
-                paymentSerializer.save()
-                newPayment: OrderPayment = paymentSerializer.instance
-                sourceOrder.log_action(
-                    'pretix.event.order.payment.started', {
-                        'local_id': newPayment.local_id,
-                        'provider': newPayment.provider,
-                    },
-                    user=request.user if request.user.is_authenticated else None,
-                    auth=request.auth
-                )
-                newPayment.confirm(
-                    user=self.request.user if self.request.user.is_authenticated else None,
-                    auth=self.request.auth,
-                    count_waitinglist=False,
-                    ignore_date=True,
-                    force=True,
-                    send_mail=False,
-                )
-                logger.debug(f"ApiTransferOrder [{orderCode}]: Payment created")
+                    paymentSerializer = OrderPaymentCreateSerializer(data=paymentData, context=orderContext)
+                    paymentSerializer.is_valid(raise_exception=True)
+                    paymentSerializer.save()
+                    newPayment: OrderPayment = paymentSerializer.instance
+                    sourceOrder.log_action(
+                        'pretix.event.order.payment.started', {
+                            'local_id': newPayment.local_id,
+                            'provider': newPayment.provider,
+                        },
+                        user=request.user if request.user.is_authenticated else None,
+                        auth=request.auth
+                    )
+                    newPayment.confirm(
+                        user=self.request.user if self.request.user.is_authenticated else None,
+                        auth=self.request.auth,
+                        count_waitinglist=False,
+                        ignore_date=True,
+                        force=True,
+                        send_mail=False,
+                    )
+                    logger.debug(f"ApiTransferOrder [{orderCode}]: Payment created")
 
                 # Let OCM update the internal fields of the order
                 ocm = FzOrderChangeManager(
@@ -474,9 +486,9 @@ class ApiTransferOrder(APIView, View):
                     email_comment=cancellationComment,
                     send_mail=False,
                     cancel_invoice=False,
-                    cancellation_fee=sourceOrder.total
+                    cancellation_fee=membershipCardTotalAmount if membershipCardTotalAmount > 0 else None
                 )
-                logger.debug(f"ApiTransferOrder [{orderCode}]: Order canceled with paid fee ({sourceOrder.total})")
+                logger.debug(f"ApiTransferOrder [{orderCode}]: Order canceled with paid fee of {membershipCardTotalAmount}")
         except FzException as fe:
             status_code = fe.code if fe.code is not None else status.HTTP_400_BAD_REQUEST
             return JsonResponse(fe.extraData, status=status_code)
