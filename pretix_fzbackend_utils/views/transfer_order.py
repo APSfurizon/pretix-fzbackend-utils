@@ -158,6 +158,8 @@ class ApiTransferOrder(APIView, View):
         #)
 
         CONTEXT = {"event": request.event, "pdf_data": False, "check_quotas": False, "auth": request.auth}
+        
+        newOrderCode = None
 
         try:
             with transaction.atomic():
@@ -301,6 +303,7 @@ class ApiTransferOrder(APIView, View):
                     user=request.user if request.user.is_authenticated else None,
                     auth=request.auth,
                 )
+                newOrderCode = newOrder.code
                 with language(newOrder.locale, self.request.event.settings.region):
                     payment = newOrder.payments.last()
                     # OrderCreateSerializer creates at most one payment
@@ -327,7 +330,7 @@ class ApiTransferOrder(APIView, View):
                             user=request.user if request.user.is_authenticated else None,
                             auth=request.auth,
                         )
-                logger.debug(f"ApiTransferOrder [{orderCode}]: New order created for user {newUserId} with code {newOrder.code}")
+                logger.info(f"ApiTransferOrder [{orderCode}]: New order created for user {newUserId} with code {newOrderCode}")
                 # If users needs a membership card, we add it there
                 if membershipCardNeededForNewUser:
                     pos: OrderPosition
@@ -342,7 +345,7 @@ class ApiTransferOrder(APIView, View):
                                 )
                             ocm.add_position_no_addon_validation(item=membershipCardItem, variation=None, price=membershipCardItem.default_price, addon_to=pos)
                             ocm.commit()
-                            logger.debug(f"ApiTransferOrder [{orderCode}]: Membership card added to new order {newOrder.code} for user {newUserId}")
+                            logger.info(f"ApiTransferOrder [{orderCode}]: Membership card added to new order {newOrderCode} for user {newUserId}")
                             break
                 
                 # FIX PAYMENTS ON SOURCE ORDER
@@ -386,7 +389,7 @@ class ApiTransferOrder(APIView, View):
 
                 orderContext = {"order": sourceOrder, **CONTEXT}
 
-                logger.debug(f"ApiTransferOrder [{orderCode}]: Payments marked as refunded")
+                logger.info(f"ApiTransferOrder [{orderCode}]: Payments marked as refunded")
 
                 # It's enough to mark payment as refunded. However this may seem an inconsistent state (order paid with no valid payments),
                 # so we create a refund object as well
@@ -424,12 +427,12 @@ class ApiTransferOrder(APIView, View):
                     user=request.user if request.user.is_authenticated else None,
                     auth=request.auth
                 )
-                logger.debug(f"ApiTransferOrder [{orderCode}]: Refund created")
+                logger.info(f"ApiTransferOrder [{orderCode}]: Refund created")
 
                 # If the sourceOrder had some membership cards, we create a new fake payment.
                 # This is going to be our canceletion fee
                 if membershipCardTotalAmount > 0:
-                    logger.debug(f"ApiTransferOrder [{orderCode}]: Creating payment for membership card amount {membershipCardTotalAmount}")
+                    logger.info(f"ApiTransferOrder [{orderCode}]: Creating payment for membership card amount {membershipCardTotalAmount}")
                     paymentData = {
                         "state": OrderPayment.PAYMENT_STATE_PENDING,
                         "amount": membershipCardTotalAmount,
@@ -461,7 +464,7 @@ class ApiTransferOrder(APIView, View):
                         force=True,
                         send_mail=False,
                     )
-                    logger.debug(f"ApiTransferOrder [{orderCode}]: Payment created")
+                    logger.info(f"ApiTransferOrder [{orderCode}]: Payment created")
 
                 # Let OCM update the internal fields of the order
                 ocm = FzOrderChangeManager(
@@ -488,7 +491,9 @@ class ApiTransferOrder(APIView, View):
                     cancel_invoice=False,
                     cancellation_fee=membershipCardTotalAmount if membershipCardTotalAmount > 0 else None
                 )
-                logger.debug(f"ApiTransferOrder [{orderCode}]: Order canceled with paid fee of {membershipCardTotalAmount}")
+                logger.info(f"ApiTransferOrder [{orderCode}]: Order canceled with paid fee of {membershipCardTotalAmount}")
+                if newOrderCode is None:
+                    raise FzException("New order code is none", extraData={"error": f'New order code is None'}, code=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except FzException as fe:
             status_code = fe.code if fe.code is not None else status.HTTP_400_BAD_REQUEST
             return JsonResponse(fe.extraData, status=status_code)
@@ -496,5 +501,8 @@ class ApiTransferOrder(APIView, View):
         logger.info(
             f"ApiTransferOrder [{orderCode}]: Success"
         )
+        
+        if (newOrderCode is not None):
+            return JsonResponse({"newOrderCode": newOrderCode}, status=status.HTTP_200_OK)
 
         return HttpResponse("")
