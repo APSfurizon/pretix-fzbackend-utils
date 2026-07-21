@@ -89,15 +89,11 @@ class ApiTransferOrder(APIView, View):
             return JsonResponse(
                 {"error": 'Missing or invalid parameter "newEmail"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        if "ticketItemIds" not in data or not isinstance(data["ticketItemIds"], list) or len(data["ticketItemIds"]) == 0:
+        if "membershipCardAddonToPositionId" in data and data["membershipCardAddonToPositionId"] and not isinstance(data["membershipCardAddonToPositionId"], int):
             return JsonResponse(
-                {"error": 'Missing or invalid parameter "ticketItemIds"'}, status=status.HTTP_400_BAD_REQUEST
+                {"error": 'Invalid parameter "membershipCardAddonToPositionId"'}, status=status.HTTP_400_BAD_REQUEST
             )
-        for ticket in data["ticketItemIds"]:
-            if not isinstance(ticket, int):
-                return JsonResponse(
-                    {"error": 'Invalid parameter ticket item id'}, status=status.HTTP_400_BAD_REQUEST
-                )
+
                 
         if "name" in data and data["name"] and not isinstance(data["name"], str):
             return JsonResponse(
@@ -139,10 +135,10 @@ class ApiTransferOrder(APIView, View):
         orderCode = data["orderCode"]
         membershipCardItemIds = data["membershipCardItemIds"]
         membershipCardNeededForNewUser = data["membershipCardNeededForNewUser"]
+        membershipCardAddonToPositionId = data.get("membershipCardAddonToPositionId", None)
         userIdQuestionId = data["userIdQuestionId"]
         newUserId = data["newUserId"]
         newEmail = data["newEmail"]
-        ticketItemIds = data["ticketItemIds"]
         name = data.get("name", None)
         street = data.get("street", None)
         zipcode = data.get("zipcode", None)
@@ -172,6 +168,7 @@ class ApiTransferOrder(APIView, View):
                 sourcePositions = sourceOrder.positions.all()
                 sourceFees = sourceOrder.fees.all()
                 
+                membershipCardAddonToNewPositionId = None
                 membershipCardTotalAmount = 0
                 
                 # FIRST CREATES THE NEW ORDER FOR THE DEST USER
@@ -248,6 +245,8 @@ class ApiTransferOrder(APIView, View):
                 for pos in basePositions:
                     orgPositionId = pos["positionid"]
                     pos["positionid"] = posId
+                    if membershipCardAddonToPositionId is not None and orgPositionId == membershipCardAddonToPositionId:
+                        membershipCardAddonToNewPositionId = posId
                     basePosId = posId
                     posId += 1
                     newPositions.append(pos)
@@ -335,7 +334,7 @@ class ApiTransferOrder(APIView, View):
                 if membershipCardNeededForNewUser:
                     pos: OrderPosition
                     for pos in newOrder.positions.all():
-                        if (pos.item_id in ticketItemIds):
+                        if (pos.positionid == membershipCardAddonToNewPositionId):
                             ocm = FzOrderChangeManager(
                                     order=newOrder,
                                     user=self.request.user if self.request.user.is_authenticated else None,
@@ -347,6 +346,8 @@ class ApiTransferOrder(APIView, View):
                             ocm.commit()
                             logger.info(f"ApiTransferOrder [{orderCode}]: Membership card added to new order {newOrderCode} for user {newUserId}")
                             break
+                    else:
+                        logger.error(f"ApiTransferOrder [{orderCode}]: Membership card addon position to not found in new order {newOrderCode} for user {newUserId}")
                 
                 # FIX PAYMENTS ON SOURCE ORDER
 
