@@ -4,6 +4,7 @@ from .general_views import ApiSetItemBundle, FznackendutilsSettings
 from .views.convert_ticket_only import ApiConvertTicketOnlyOrder
 from .views.exchange_rooms import ApiExchangeRooms
 from .views.transfer_order import ApiTransferOrder
+from .views.add_position_with_payment import ApiAddPositionAndPayment
 
 urlpatterns = [
     re_path(
@@ -37,6 +38,11 @@ event_patterns = [
                     "exchange-rooms/",
                     ApiExchangeRooms.as_view(),
                     name="exchange-rooms",
+                ),
+                path(
+                    "add-position-and-payment/",
+                    ApiAddPositionAndPayment.as_view(),
+                    name="add-position-and-payment",
                 ),
             ]
         ),
